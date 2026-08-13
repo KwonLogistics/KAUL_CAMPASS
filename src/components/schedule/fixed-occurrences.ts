@@ -7,14 +7,11 @@
  * ScheduleTab.tsx가 보여주는 주(2026-08-10~08-16)만 생성한다.
  */
 
-import { fixedSchedules, CALENDAR_2026_08 } from "@/data/mock-data";
+import { fixedSchedules, CALENDAR_2026_08, TODAY_ISO, HOLIDAYS } from "@/data/mock-data";
 import { convertFixedScheduleToScheduleItem } from "./convert";
 import type { ScheduleItem } from "./types";
 
 const VISIBLE_WEEK_DATES = [
-  "2026-08-10",
-  "2026-08-11",
-  "2026-08-12",
   "2026-08-13",
   "2026-08-14",
   "2026-08-15",
@@ -41,6 +38,8 @@ export const fixedScheduleItems: ScheduleItem[] = fixedSchedules.flatMap((schedu
   VISIBLE_WEEK_DATES.filter((dateISO) => {
     const weekday = weekdayOf(dateISO);
     return (
+      dateISO >= TODAY_ISO &&
+      !HOLIDAYS.includes(dateISO) &&
       weekday !== null &&
       schedule.weekdays.includes(weekday) &&
       dateISO >= schedule.validFrom &&

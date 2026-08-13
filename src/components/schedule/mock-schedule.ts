@@ -9,13 +9,12 @@
  * 타임라인 보기와 리스트 보기가 이 배열 하나를 그대로 같이 쓴다.
  */
 
-import { spotOrders, pastTrips } from "@/data/mock-data";
-import { convertSpotOrderToScheduleItem, convertPastTripToScheduleItem } from "./convert";
+import { pastTrips } from "@/data/mock-data";
+import { convertPastTripToScheduleItem } from "./convert";
 import { fixedScheduleItems } from "./fixed-occurrences";
 import type { ScheduleItem } from "./types";
 
 export const scheduleItems: ScheduleItem[] = [
-  ...spotOrders.map((order) => convertSpotOrderToScheduleItem(order)),
   ...pastTrips.map((trip) => convertPastTripToScheduleItem(trip)),
   ...fixedScheduleItems,
 ].sort((a, b) => `${a.date}${a.loadingStart}`.localeCompare(`${b.date}${b.loadingStart}`));
