@@ -10,6 +10,7 @@ import { convertSpotOrderToScheduleItem } from "./schedule/convert";
 import { buildDayTimeline, isRecommendationEligible, getEdgeRestBlocks } from "./schedule/timeline";
 import { getMetaBadges, getConditionBadges, getRouteLabel, getFareTotal } from "./schedule/badges";
 import ScheduleDetailModal from "./schedule/ScheduleDetailModal";
+import SmartRouteAssistModal, { type GapWindow } from "./schedule/SmartRouteAssistModal";
 import type { ScheduleItem } from "./schedule/types";
 import { STATUS_LABEL, STATUS_STYLE } from "./schedule/status-style";
 
@@ -19,6 +20,7 @@ export default function ScheduleTab() {
   const [showReportModal, setShowReportModal] = useState<boolean>(false);
   const [showExternal, setShowExternal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
+  const [assistGap, setAssistGap] = useState<GapWindow | null>(null);
 
   const [selectedDate, setSelectedDate] = useState<number>(13);
   const weekDays = ["월", "화", "수", "목", "금", "토", "일"];
@@ -312,6 +314,14 @@ export default function ScheduleTab() {
                             </span>
                             <button
                               type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAssistGap({
+                                  dateISO: selectedDateISO,
+                                  startMin: block.startMin,
+                                  endMin: block.endMin,
+                                });
+                              }}
                               className="mt-1 flex items-center gap-1 rounded-full border border-[#3b5bdb]/30 bg-white px-2.5 py-1 text-[10px] font-bold text-[#3b5bdb] shadow-sm transition-colors hover:bg-[#f4f7ff] cursor-pointer"
                             >
                               <span>✨</span> AI 스마트 경로 추천 받기
@@ -452,6 +462,11 @@ export default function ScheduleTab() {
       {/* 스케줄 카드 상세 시트 */}
       {selectedItem && (
         <ScheduleDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} />
+      )}
+
+      {/* 스마트 경로 어시스트 — 90분 이상 공백에서 "AI 스마트 경로 추천 받기" 클릭 시 */}
+      {assistGap && (
+        <SmartRouteAssistModal gap={assistGap} onClose={() => setAssistGap(null)} />
       )}
 
       {/* 외부 오더 등록 시트 */}
