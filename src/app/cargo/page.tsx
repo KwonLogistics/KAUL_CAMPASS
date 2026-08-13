@@ -3,92 +3,245 @@
 /**
  * ⚠️ 소유: 순범. 화물 정보 탭.
  *
- * ★ 정렬 토글이 이 화면의 핵심이다.
- *   운임순과 실질 시급순에서 목록 순서가 눈앞에서 뒤집힌다.
- *   가장 비싼 오더가 시급으로는 꼴찌일 수 있다는 걸, 잡기 전에 보여준다.
+ * 클론 UI를 그대로 두고, 기존 정렬 4개에 우리 축 2개를 더한다.
+ *   최신순 · 가까운 순 · 운송거리 짧은 순 · 금액 높은 순   ← 앱에 원래 있던 것
+ *   실질 시급 높은 순 · 대기 시간 짧은 순                  ← 우리가 더한 것
  *
- * 우리는 오더를 고르지 않는다. 목록에서 빼지도 않는다. 순서만 바꾸고, 왜 그 순서인지 쓴다.
+ * 목록에서 오더를 빼지 않는다. 순서만 바꾸고, 왜 그 순서인지 한 줄로 쓴다.
  */
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { spotOrders } from "@/data/mock-data";
+import { spotOrders, renderDateBadge, isOvernightLoad } from "@/data/mock-data";
+import type { SpotOrder } from "@/lib/types";
 import { computeEconomics } from "@/lib/engine/economics";
-import OrderCard from "@/components/cargo/OrderCard";
+import { estimateWait } from "@/lib/engine/wait-time";
+import CallMetrics from "@/components/common/CallMetrics";
 
-type SortKey = "fare" | "wage";
+type SortKey =
+  | "latest"
+  | "near"
+  | "haul"
+  | "fare"
+  | "wage"
+  | "wait";
 
 const SORT_LABEL: Record<SortKey, string> = {
-  fare: "운임순",
-  wage: "실질 시급순",
+  latest: "최신순",
+  near: "가까운 순",
+  haul: "운송거리 짧은 순",
+  fare: "금액 높은 순",
+  wage: "실질 시급 높은 순",
+  wait: "대기 시간 짧은 순",
 };
 
-const SORT_NOTE: Record<SortKey, string> = {
-  fare: "등록 운임이 높은 순입니다. 운임은 일에 쓰는 시간을 말해주지 않습니다.",
-  wage: "순이익 ÷ 실질시간이 높은 순입니다. 실질시간에는 무급인 대기·상하차가 들어갑니다.",
+/** 우리가 더한 축에만 근거를 쓴다. 앱에 원래 있던 정렬은 설명이 필요 없다. */
+const SORT_NOTE: Partial<Record<SortKey, string>> = {
+  wage: "순이익 ÷ 실질시간이 높은 순입니다. 실질시간에는 운임이 지급되지 않는 대기·상하차가 들어갑니다.",
+  wait: "업무 외 대기시간이 짧은 순입니다. 기사님의 과거 운행 기록에서 뽑은 중앙값이고, 기록이 없으면 없다고 씁니다.",
 };
+
+const OUR_AXES: SortKey[] = ["wage", "wait"];
+
+function sortOrders(list: SpotOrder[], key: SortKey): SpotOrder[] {
+  const arr = [...list];
+  switch (key) {
+    case "latest":
+      return arr.sort((a, b) => b.postedAt.localeCompare(a.postedAt));
+    case "near":
+      return arr.sort((a, b) => a.distance.toPickupKm - b.distance.toPickupKm);
+    case "haul":
+      return arr.sort((a, b) => a.distance.haulKm - b.distance.haulKm);
+    case "fare":
+      return arr.sort((a, b) => b.fare.total - a.fare.total);
+    case "wage":
+      return arr.sort(
+        (a, b) => computeEconomics(b).hourlyWage - computeEconomics(a).hourlyWage,
+      );
+    case "wait":
+      // 기록이 없는 건(L4)은 뒤로 보낸다 — 짧아 보이는 게 실제로 짧은 게 아니다.
+      return arr.sort((a, b) => {
+        const wa = estimateWait(a);
+        const wb = estimateWait(b);
+        if (wa.unknown !== wb.unknown) return wa.unknown ? 1 : -1;
+        return wa.minutes - wb.minutes;
+      });
+  }
+}
+
+/** 배지는 저장하지 않고 날짜·조건에서 파생한다. */
+function badgesOf(order: SpotOrder): string[] {
+  const out = [renderDateBadge(order)];
+  if (isOvernightLoad(order)) out.push("야상");
+  if (order.dropoff.forklift) out.push("지게차");
+  if (order.dropoff.manual) out.push("수작업");
+  if (order.loadOption === "혼적") out.push("혼적");
+  return out;
+}
 
 export default function CargoInfo() {
-  const [sort, setSort] = useState<SortKey>("fare");
+  const [sortOpen, setSortOpen] = useState(false);
+  const [sort, setSort] = useState<SortKey>("latest");
 
-  const orders = useMemo(() => {
-    const withEconomics = spotOrders.map((o) => ({
-      order: o,
-      economics: computeEconomics(o),
-    }));
-    return withEconomics.sort((a, b) =>
-      sort === "fare"
-        ? b.order.fare.total - a.order.fare.total
-        : b.economics.hourlyWage - a.economics.hourlyWage,
-    );
-  }, [sort]);
+  const orders = useMemo(() => sortOrders(spotOrders, sort), [sort]);
+  const note = SORT_NOTE[sort];
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#f4f4f6] pb-[80px]">
-      {/* 헤더 */}
-      <div className="sticky top-0 z-20 flex items-center justify-between bg-[#3b5bdb] px-4 py-3 text-white">
+    <div className="flex flex-col min-h-screen bg-[#f4f4f6] relative pb-[120px]">
+      {/* Header */}
+      <div className="bg-[#3b5bdb] text-white flex justify-between items-center px-4 py-3 sticky top-0 z-20">
         <h1 className="text-lg font-bold">화물 정보</h1>
-        <Link
-          href="/settings/location"
-          className="rounded-full border border-white/30 bg-white/20 px-3 py-1 text-sm font-medium"
-        >
-          선호 지역
-        </Link>
-      </div>
-
-      {/* ★ 정렬 토글 */}
-      <div className="sticky top-[52px] z-10 border-b border-gray-200 bg-white px-4 py-3">
-        <div className="flex gap-1.5">
-          {(["fare", "wage"] as const).map((k) => (
-            <button
-              key={k}
-              onClick={() => setSort(k)}
-              className={`flex-1 rounded-md py-2 text-[14px] font-bold transition-colors ${
-                sort === k
-                  ? "bg-[#3b5bdb] text-white"
-                  : "border border-gray-200 bg-white text-gray-600"
-              }`}
-            >
-              {SORT_LABEL[k]}
-            </button>
-          ))}
+        <div className="flex items-center bg-white/20 px-3 py-1 rounded-full border border-white/30 cursor-pointer">
+          <span className="text-sm font-medium mr-2">오더추천 ON</span>
+          <div className="w-8 h-4 bg-white rounded-full flex items-center p-0.5">
+            <div className="w-3 h-3 bg-[#3b5bdb] rounded-full transform translate-x-4 transition-transform"></div>
+          </div>
         </div>
-        {/* 왜 이 순서인지 쓴다 */}
-        <p className="mt-2 text-[11px] leading-snug text-gray-500">
-          {SORT_NOTE[sort]}
-        </p>
       </div>
 
-      <div className="flex items-center justify-between px-5 py-2.5 text-[12px] text-gray-500">
-        <span>{orders.length}건</span>
-        <span>조건에 안 맞는 오더도 빼지 않고 전부 보여드립니다</span>
+      {/* Sub Header (Filters) */}
+      <div className="bg-white flex items-center px-4 py-3 border-b border-gray-200 sticky top-[52px] z-10">
+        <div
+          className="flex items-center text-gray-700 font-medium text-[15px] cursor-pointer relative mr-auto"
+          onClick={() => setSortOpen(!sortOpen)}
+        >
+          <span className="mr-1 text-gray-400 font-bold">↓↑</span> {SORT_LABEL[sort]}
+          {sortOpen && (
+            <div className="absolute top-8 left-0 bg-white border border-gray-200 shadow-xl rounded-md w-52 py-2 z-30">
+              {(Object.keys(SORT_LABEL) as SortKey[]).map((key, idx) => (
+                <div key={key}>
+                  {/* 앱에 원래 있던 4개와 우리가 더한 2개 사이에 선을 긋는다 */}
+                  {idx === 4 && <div className="my-1.5 border-t border-gray-100" />}
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSort(key);
+                      setSortOpen(false);
+                    }}
+                    className={`px-4 py-2.5 text-sm flex justify-between items-center hover:bg-gray-50 ${
+                      sort === key ? "text-[#3b5bdb] font-bold" : "text-gray-700"
+                    }`}
+                  >
+                    <span className="flex items-center gap-1.5">
+                      {SORT_LABEL[key]}
+                      {OUR_AXES.includes(key) && (
+                        <span className="bg-[#f4f7ff] text-[#3b5bdb] text-[9px] px-1 py-0.5 rounded font-bold border border-[#d6e2ff]">
+                          NEW
+                        </span>
+                      )}
+                    </span>
+                    {sort === key && <span className="text-xs">✓</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <Link href="/settings/search" className="flex items-center px-3 py-1.5 border border-gray-300 rounded text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors">
+            <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd"></path></svg>
+            검색설정
+          </Link>
+          <Link href="/settings/location" className="flex items-center px-3 py-1.5 border border-[#d6e2ff] text-[#3b5bdb] rounded text-xs font-bold bg-[#f4f7ff] hover:bg-[#e9efff] transition-colors">
+            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            선호지역
+          </Link>
+        </div>
       </div>
 
-      {/* 목록 */}
+      {/* 우리가 더한 정렬을 골랐을 때만 근거 한 줄 */}
+      {note && (
+        <div className="bg-[#f4f7ff] border-b border-[#d6e2ff] px-5 py-2.5">
+          <p className="text-[11px] leading-snug text-[#3b5bdb]">{note}</p>
+        </div>
+      )}
+
+      {/* Banner */}
+      <div className="bg-[#eef2ff] px-5 py-5 flex justify-between items-center relative overflow-hidden">
+        <div className="z-10">
+          <p className="text-gray-800 font-bold text-base leading-snug">화물기사 자격을 등록하면<br/>오더를 수행할 수 있어요</p>
+          <p className="text-[#3b5bdb] font-semibold text-sm mt-2 flex items-center cursor-pointer">
+            서류 제출하러 가기 <svg className="w-3 h-3 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
+          </p>
+        </div>
+        <div className="absolute right-[-5px] bottom-[-5px] text-7xl opacity-90 drop-shadow-sm">🗂️</div>
+      </div>
+
+      {/* Order List */}
       <div className="flex flex-col bg-white">
-        {orders.map(({ order }) => (
-          <OrderCard key={order.id} order={order} />
+        {orders.map((order) => (
+          <Link href={`/cargo/${order.id}`} key={order.id} className="block border-t-[6px] border-gray-100 px-5 py-5 relative cursor-pointer hover:bg-gray-50 transition-colors">
+            {order.source === "external" && (
+              <div className="absolute top-5 right-5 bg-gray-100 text-gray-500 text-[10px] px-1.5 py-0.5 rounded font-bold">외부</div>
+            )}
+
+            <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+              {badgesOf(order).map((b) => (
+                <span key={b} className="text-[11px] px-1.5 py-0.5 rounded font-bold border bg-[#f4f7ff] text-[#3b5bdb] border-[#d6e2ff]">{b}</span>
+              ))}
+              <span className="text-[11px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded font-medium">{order.distance.toPickupKm}km 주변</span>
+            </div>
+
+            <div className="flex flex-col gap-1 mt-3">
+              <div className="flex items-center">
+                <div className="w-2 h-2 rounded-full border-[1.5px] border-gray-400 mr-2 bg-transparent"></div>
+                <span className="font-bold text-gray-900 text-base">{order.pickup.sido} {order.pickup.sigungu} {order.pickup.dong}</span>
+                <span className="ml-2 bg-gray-400 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">상차</span>
+                <span className="ml-1 text-[13px] text-gray-500 font-medium">{order.pickup.time}</span>
+              </div>
+
+              <div className="flex flex-col ml-[3px] my-1">
+                <div className="w-[1.5px] h-1.5 bg-gray-300 mb-1"></div>
+                <div className="w-[1.5px] h-1.5 bg-gray-300"></div>
+              </div>
+
+              <div className="flex items-center">
+                <div className="w-2 h-2 rounded-full bg-[#3b5bdb] mr-2"></div>
+                <span className="font-bold text-gray-900 text-base">{order.dropoff.sido} {order.dropoff.sigungu} {order.dropoff.dong}</span>
+                <span className="ml-2 bg-[#3b5bdb] text-white text-[10px] px-1.5 py-0.5 rounded font-bold">하차</span>
+                <span className="ml-1 text-[13px] text-gray-500 font-medium">{order.dropoff.time}</span>
+              </div>
+            </div>
+
+            <div className="mt-4 text-[14px]">
+              <span className="font-bold text-gray-900">{order.loadOption}</span>
+              <span className="text-gray-300 mx-1.5 font-bold">·</span>
+              <span className="font-bold text-gray-900">{order.vehicle.ton}톤</span>
+              <span className="text-gray-300 mx-1.5 font-bold">·</span>
+              <span className="font-bold text-gray-900">{order.vehicle.body}</span>
+              {order.remarksRaw && <span className="text-gray-600 ml-1.5">{order.remarksRaw}</span>}
+            </div>
+
+            {/* 요건 미달이어도 빼지 않는다. 회색으로 두고 사유를 쓴다 */}
+            {!order.vehicleFit.ok && (
+              <p className="mt-2 rounded bg-gray-100 px-2 py-1.5 text-[11px] leading-snug text-gray-500">
+                ⚠ {order.vehicleFit.reason}
+              </p>
+            )}
+
+            {/* ★ 실질 시급 + 업무 외 대기시간 */}
+            <CallMetrics order={order} />
+
+            <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between items-center">
+              <div className="text-[13px] text-[#3b5bdb] font-medium">
+                {order.fare.settle}
+              </div>
+              <div className="text-right">
+                <span className="text-[11px] text-gray-400 mr-1">등록 운임</span>
+                <span className="text-[22px] font-extrabold text-gray-900">{order.fare.total.toLocaleString()}</span>
+              </div>
+            </div>
+          </Link>
         ))}
+      </div>
+
+      {/* Floating Button */}
+      <div className="fixed bottom-[80px] w-full max-w-[480px] px-5 flex justify-center z-30 pointer-events-none">
+        <button className="pointer-events-auto bg-[#f4f7ff]/95 backdrop-blur-sm border border-[#3b5bdb] text-[#3b5bdb] shadow-lg rounded-full py-3.5 px-8 font-bold text-[15px] flex items-center justify-center transition-transform hover:scale-105">
+          자동배차 예약하고 오더 선점하기
+          <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"></path></svg>
+        </button>
       </div>
     </div>
   );
