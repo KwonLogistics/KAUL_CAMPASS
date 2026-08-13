@@ -7,13 +7,7 @@ import { buildDayTimeline } from './schedule/timeline';
 import { getMetaBadges, getConditionBadges, getRouteLabel, getFareTotal } from './schedule/badges';
 import ScheduleDetailModal from './schedule/ScheduleDetailModal';
 import type { ScheduleItem } from './schedule/types';
-
-const STATUS_LABEL: Record<string, string> = {
-  scheduled: '예정',
-  in_progress: '진행중',
-  completed: '완료',
-  cancelled: '취소',
-};
+import { STATUS_LABEL, STATUS_STYLE } from './schedule/status-style';
 
 export default function ScheduleTab() {
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('calendar');
@@ -111,7 +105,7 @@ export default function ScheduleTab() {
                           {b}
                         </span>
                       ))}
-                      <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-500">
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${STATUS_STYLE[item.status].badge}`}>
                         {STATUS_LABEL[item.status]}
                       </span>
                     </div>
@@ -218,25 +212,10 @@ export default function ScheduleTab() {
                   const item = block.item;
                   // FixedSchedule엔 source 필드 자체가 없다 — 있는 경우에만 외부 여부를 판단한다
                   const isExternal = 'source' in item.order && item.order.source === 'external';
-                  const isCompleted = item.status === 'completed';
-                  const isInProgress = item.status === 'in_progress';
+                  const style = STATUS_STYLE[item.status];
 
+                  // 카드 배경은 상태색으로 채우지 않는다 — 출처 기준의 옅은 톤만 유지, 구분은 배지·border가 맡는다
                   const bgColor = isExternal ? 'bg-[#f8f9fa]' : 'bg-[#eef2ff]';
-                  // 상태가 완료/진행중이면 출처 색보다 상태 색을 우선한다. 예정(기본)은 기존 출처 기준 유지
-                  const borderColor = isCompleted
-                    ? 'border-gray-300'
-                    : isInProgress
-                      ? 'border-[#3b5bdb]'
-                      : isExternal ? 'border-gray-400' : 'border-[#3b5bdb]';
-                  const borderWidth = isInProgress ? 'border-l-[6px]' : 'border-l-[4px]';
-                  const titleColor = isExternal ? 'text-gray-500' : 'text-[#3b5bdb]';
-
-                  const statusBadge =
-                    isCompleted
-                      ? { label: '완료', className: 'bg-gray-200 text-gray-500' }
-                      : isInProgress
-                        ? { label: '진행 중', className: 'bg-[#3b5bdb] text-white' }
-                        : { label: '예정', className: 'bg-gray-100 text-gray-400' };
 
                   const metaBadges = getMetaBadges(item);
                   const conditionBadges = getConditionBadges(item);
@@ -251,16 +230,16 @@ export default function ScheduleTab() {
                     <div
                       key={item.id}
                       onClick={() => setSelectedItem(item)}
-                      className={`absolute left-3 right-4 ${bgColor} ${borderWidth} ${borderColor} rounded-r-md p-2.5 shadow-sm flex flex-col overflow-hidden cursor-pointer transition-colors hover:shadow-md z-10 ${isInProgress ? 'ring-1 ring-[#3b5bdb]/30' : ''}`}
+                      className={`absolute left-3 right-4 ${bgColor} ${style.borderWidth} ${style.border} rounded-r-md p-2.5 shadow-sm flex flex-col overflow-hidden cursor-pointer transition-colors hover:shadow-md z-10 ${style.ring}`}
                       style={{ top: `${topOffset}px`, height: `${height}px` }}
                     >
                       {/* 우측 상단 상태 배지 */}
-                      <span className={`absolute top-1.5 right-1.5 flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold ${statusBadge.className}`}>
-                        {isInProgress && <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />}
-                        {statusBadge.label}
+                      <span className={`absolute top-1.5 right-1.5 flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold ${style.badge}`}>
+                        {style.pulseDot && <span className={`h-1.5 w-1.5 rounded-full animate-pulse ${style.pulseDot}`} />}
+                        {STATUS_LABEL[item.status]}
                       </span>
 
-                      <span className={`text-[10px] font-bold ${titleColor} mb-1 pr-12`}>
+                      <span className={`text-[10px] font-bold ${style.title} mb-1 pr-12`}>
                         {item.loadingStart} - {item.unloadingStart}
                       </span>
 
