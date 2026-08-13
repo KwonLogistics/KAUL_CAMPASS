@@ -7,7 +7,7 @@ import ExternalOrderSheet from "./order-import/ExternalOrderSheet";
 import { useAppState } from "@/lib/store/AppStateProvider";
 import { scheduleItems } from "./schedule/mock-schedule";
 import { convertSpotOrderToScheduleItem } from "./schedule/convert";
-import { buildDayTimeline } from "./schedule/timeline";
+import { buildDayTimeline, isRecommendationEligible, getEdgeRestBlocks } from "./schedule/timeline";
 import { getMetaBadges, getConditionBadges, getRouteLabel, getFareTotal } from "./schedule/badges";
 import ScheduleDetailModal from "./schedule/ScheduleDetailModal";
 import type { ScheduleItem } from "./schedule/types";
@@ -34,7 +34,6 @@ export default function ScheduleTab() {
   );
   const allItems = useMemo(() => [...scheduleItems, ...externalItems], [externalItems]);
 
-  const hours = Array.from({ length: 24 }, (_, i) => i);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const HOUR_HEIGHT = 80;
@@ -51,20 +50,46 @@ export default function ScheduleTab() {
   const dayBlocks = useMemo(() => buildDayTimeline(currentDaySchedules), [currentDaySchedules]);
   const tripBlocks = useMemo(() => dayBlocks.filter((b) => b.kind === "trip"), [dayBlocks]);
 
-  // 가장 이른 스케줄 기준으로 자동 스크롤
+  // 첫 일정 이전 / 마지막 일정 이후 여백 중 추천 조건(90분 이상 등)을 만족하는 구간만 별도로 추가
+  const edgeRestBlocks = useMemo(
+    () => getEdgeRestBlocks(selectedDateISO, tripBlocks, currentDaySchedules),
+    [selectedDateISO, tripBlocks, currentDaySchedules]
+  );
+  const renderBlocks = useMemo(
+    () => [...dayBlocks, ...edgeRestBlocks].sort((a, b) => a.startMin - b.startMin),
+    [dayBlocks, edgeRestBlocks]
+  );
+
+  // 해당 날짜의 첫 업무 1시간 전 ~ 마지막 업무 1~2시간 후까지만 시간축을 가변으로 생성
+  // (앞뒤 추천 여백 블록이 있으면 그 범위까지 포함해서 잘리지 않게 한다)
+  const hasTrips = tripBlocks.length > 0;
+  const earliestHour = hasTrips
+    ? Math.min(
+        ...tripBlocks.map((b) => Math.floor(b.startMin / 60)),
+        ...edgeRestBlocks.map((b) => Math.floor(b.startMin / 60))
+      )
+    : 8;
+  const latestHour = hasTrips
+    ? Math.max(
+        ...tripBlocks.map((b) => Math.ceil(b.endMin / 60)),
+        ...edgeRestBlocks.map((b) => Math.ceil(b.endMin / 60))
+      )
+    : 18;
+
+  // 시작시각(첫 업무 1시간 전, 최소 0시), 종료시각(마지막 업무 1시간 후, 최소 startHour+4, 최대 24시)
+  const timelineStartHour = Math.max(earliestHour - 1, 0);
+  const timelineEndHour = Math.min(Math.max(latestHour + 1, timelineStartHour + 4), 24);
+
+  const displayedHours = Array.from(
+    { length: timelineEndHour - timelineStartHour },
+    (_, i) => timelineStartHour + i
+  );
+  const totalTimelineHeight = displayedHours.length * HOUR_HEIGHT;
+
+  // 날짜 변경 시 상단으로 스무스하게 초기화
   useEffect(() => {
     if (viewMode === "calendar" && calendarMode === "weekly" && scrollContainerRef.current) {
-      if (tripBlocks.length > 0) {
-        const earliestHour = Math.min(...tripBlocks.map((b) => Math.floor(b.startMin / 60)));
-        const scrollTo = Math.max((earliestHour - 1) * HOUR_HEIGHT, 0);
-        setTimeout(() => {
-          scrollContainerRef.current?.scrollTo({ top: scrollTo, behavior: "smooth" });
-        }, 100);
-      } else {
-        setTimeout(() => {
-          scrollContainerRef.current?.scrollTo({ top: 8 * HOUR_HEIGHT, behavior: "smooth" });
-        }, 100);
-      }
+      scrollContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, [selectedDate, viewMode, calendarMode, tripBlocks]);
 
@@ -224,10 +249,10 @@ export default function ScheduleTab() {
 
           {/* Timeline Area (Scrollable) */}
           <div ref={scrollContainerRef} className="flex-1 bg-white relative overflow-y-auto">
-            <div className="flex relative" style={{ height: `${24 * HOUR_HEIGHT}px` }}>
+            <div className="flex relative" style={{ height: `${totalTimelineHeight}px` }}>
               {/* Time Column */}
               <div className="w-[60px] border-r border-gray-100 flex flex-col pt-2 bg-[#fdfdfd]">
-                {hours.map((hour) => (
+                {displayedHours.map((hour) => (
                   <div
                     key={hour}
                     style={{ height: `${HOUR_HEIGHT}px` }}
@@ -241,7 +266,7 @@ export default function ScheduleTab() {
               {/* Event Column */}
               <div className="flex-1 relative pt-2">
                 {/* Grid Lines */}
-                {hours.map((hour) => (
+                {displayedHours.map((hour) => (
                   <div
                     key={hour}
                     style={{ height: `${HOUR_HEIGHT}px` }}
@@ -253,8 +278,9 @@ export default function ScheduleTab() {
                 ))}
 
                 {/* 겹치지 않는 하루 체인만 렌더링 — 트립 블록 / 휴식·공차 블록 */}
-                {dayBlocks.map((block) => {
-                  const topOffset = (block.startMin / 60) * HOUR_HEIGHT + 8;
+                {renderBlocks.map((block) => {
+                  const topOffset =
+                    ((block.startMin - timelineStartHour * 60) / 60) * HOUR_HEIGHT + 8;
                   const height = Math.max(
                     ((block.endMin - block.startMin) / 60) * HOUR_HEIGHT - 2,
                     0
@@ -266,13 +292,32 @@ export default function ScheduleTab() {
                       gapMin >= 60
                         ? `${Math.floor(gapMin / 60)}시간${gapMin % 60 > 0 ? ` ${gapMin % 60}분` : ""}`
                         : `${gapMin}분`;
+                    // 90분 이상 + 과거 날짜 아님 + 그 날짜가 전부 completed는 아님 + (오늘이면) 아직 안 지난 gap
+                    // 판정은 전부 timeline.ts의 isRecommendationEligible이 데모 기준시각(convert.ts)을 재사용해서 계산
+                    const isRecommendable = isRecommendationEligible(
+                      selectedDateISO,
+                      block,
+                      currentDaySchedules
+                    );
                     return (
                       <div
                         key={`rest-${block.startMin}`}
-                        className="absolute left-3 right-4 flex flex-col items-center justify-center overflow-hidden rounded-r-md border-l-[4px] border-dashed border-gray-300 bg-[#fafafa] z-0"
+                        className="absolute left-3 right-4 flex flex-col items-center justify-center gap-1 overflow-hidden rounded-r-md border-l-[4px] border-dashed border-gray-300 bg-[#fafafa] z-0"
                         style={{ top: `${topOffset}px`, height: `${height}px` }}
                       >
-                        {height >= 28 ? (
+                        {height >= 28 && isRecommendable && height >= 60 ? (
+                          <>
+                            <span className="text-[11px] font-bold text-gray-400">
+                              {gapLabel}의 빈 시간이 있어요
+                            </span>
+                            <button
+                              type="button"
+                              className="mt-1 flex items-center gap-1 rounded-full border border-[#3b5bdb]/30 bg-white px-2.5 py-1 text-[10px] font-bold text-[#3b5bdb] shadow-sm transition-colors hover:bg-[#f4f7ff] cursor-pointer"
+                            >
+                              <span>✨</span> AI 스마트 경로 추천 받기
+                            </button>
+                          </>
+                        ) : height >= 28 ? (
                           <>
                             <span className="text-[11px] font-bold text-gray-400">
                               휴식 및 공차 이동

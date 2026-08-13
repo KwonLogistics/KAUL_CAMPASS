@@ -10,6 +10,7 @@
  */
 
 import type { ScheduleItem } from "./types";
+import { DEMO_NOW_DATE_ISO, DEMO_NOW_TIME } from "./convert";
 
 interface TimedItem {
   item: ScheduleItem;
@@ -85,6 +86,79 @@ export function buildDayTimeline(items: ScheduleItem[]): TimelineBlock[] {
     }
     blocks.push({ kind: "trip", item: t.item, startMin: t.startMin, endMin: t.endMin });
   });
+
+  return blocks;
+}
+
+/** 90분 이상 gap인지 — 다른 판정 없이 순수 시간 조건만 본다 */
+export function isGapLongEnough(block: RestBlock): boolean {
+  return block.endMin - block.startMin >= 90;
+}
+
+/**
+ * rest 블록에 "AI 스마트 경로 추천" CTA를 띄워도 되는지 판정한다.
+ * DEMO_NOW_DATE_ISO/DEMO_NOW_TIME(convert.ts, 데모 기준시각)을 그대로 재사용한다 — new Date() 안 씀.
+ *
+ *   - gap이 90분 미만이면 무조건 제외
+ *   - 그 날짜의 ScheduleItem이 하나라도 있는데 전부 completed면 "운행 기록 확인용" 화면으로 보고 제외
+ *   - 조회 날짜가 데모 기준일보다 과거면 제외
+ *   - 조회 날짜가 데모 기준일보다 미래면 나머지 조건 없이 포함
+ *   - 조회 날짜가 데모 기준일과 같으면(오늘), gap의 종료시점이 현재 기준시각보다 이후일 때만 포함
+ *     (이미 끝난 과거 gap 제외 — 부분적으로 지금과 겹치거나 완전히 미래인 gap은 포함)
+ */
+export function isRecommendationEligible(
+  dateISO: string,
+  block: RestBlock,
+  dayItems: ScheduleItem[],
+): boolean {
+  if (!isGapLongEnough(block)) return false;
+
+  const dayAllCompleted = dayItems.length > 0 && dayItems.every((item) => item.status === "completed");
+  if (dayAllCompleted) return false;
+
+  if (dateISO < DEMO_NOW_DATE_ISO) return false;
+  if (dateISO > DEMO_NOW_DATE_ISO) return true;
+
+  const nowMin = toMinutes(DEMO_NOW_TIME);
+  return block.endMin > nowMin;
+}
+
+/**
+ * 그날 첫 일정 이전 / 마지막 일정 이후 여백을 "AI 스마트 경로 추천" CTA 후보로 넘긴다.
+ * buildDayTimeline()은 이 두 구간을 일부러 안 채운다(00:00→첫 일정, 마지막 일정→24:00) —
+ * 그 원칙은 그대로 두고, 추천이 가능한 경우에만 별도로 rest 블록을 만들어 덧붙인다.
+ *
+ * 경계 기준(오늘/다른 날짜 다르게):
+ *   - 오늘(DEMO_NOW_DATE_ISO)이면 앞쪽 경계는 자정이 아니라 데모 기준시각(DEMO_NOW_TIME)부터
+ *     — 이미 지난 새벽 시간을 추천 대상으로 보여줄 이유가 없다.
+ *   - 그 외 날짜(미래)는 하루 전체(00:00~24:00) 기준.
+ * 각 구간은 isRecommendationEligible을 그대로 통과해야만(90분 이상 등) 포함된다 —
+ * 조건 미달이면 아예 만들지 않는다(빈 구간을 억지로 "휴식"으로 채우지 않는다는 기존 원칙 유지).
+ */
+export function getEdgeRestBlocks(
+  dateISO: string,
+  tripBlocks: Array<{ startMin: number; endMin: number }>,
+  dayItems: ScheduleItem[],
+): RestBlock[] {
+  if (tripBlocks.length === 0) return [];
+
+  const dayLowerBound = dateISO === DEMO_NOW_DATE_ISO ? toMinutes(DEMO_NOW_TIME) : 0;
+  const dayUpperBound = 24 * 60;
+
+  const firstStart = Math.min(...tripBlocks.map((b) => b.startMin));
+  const lastEnd = Math.max(...tripBlocks.map((b) => b.endMin));
+
+  const blocks: RestBlock[] = [];
+
+  if (firstStart > dayLowerBound) {
+    const leading: RestBlock = { kind: "rest", startMin: dayLowerBound, endMin: firstStart };
+    if (isRecommendationEligible(dateISO, leading, dayItems)) blocks.push(leading);
+  }
+
+  if (lastEnd < dayUpperBound) {
+    const trailing: RestBlock = { kind: "rest", startMin: lastEnd, endMin: dayUpperBound };
+    if (isRecommendationEligible(dateISO, trailing, dayItems)) blocks.push(trailing);
+  }
 
   return blocks;
 }
