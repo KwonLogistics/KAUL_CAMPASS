@@ -166,14 +166,14 @@ function CargoInfoContent() {
       // Create a dummy mock order that matches the AI condition
       const mockOrder: SpotOrder = {
         id: `auto-${Date.now()}`,
-        source: "카카오T",
+        source: "kakao",
         shipper: "자동배차(AI)",
         pickup: {
           sido: "경기",
           sigungu: "용인시",
           dong: "기흥구",
           addressDetail: "자동배차",
-          dateExpr: "내일",
+          date: "D+1",
           dateISO: "2026-08-14",
           time: "09:00",
           manual: false,
@@ -184,7 +184,7 @@ function CargoInfoContent() {
           sigungu: "전체",
           dong: "",
           addressDetail: "",
-          dateExpr: "모레이후",
+          date: "D+2+",
           dateISO: "2026-08-15",
           time: "14:00",
           manual: false,
@@ -202,14 +202,14 @@ function CargoInfoContent() {
         },
         remarksRaw: "도착 30분 전 미리 연락 부탁드립니다. 안전 운행하세요!",
         conditions: [],
-        vehicleFit: { ok: true },
-        postedAt: "방금"
+        vehicleFit: { ok: true, reason: "" },
+        postedAt: new Date().toISOString()
       };
 
       addScheduled({
         order: mockOrder,
         dateISO: TODAY_ISO,
-        via: "auto",
+        via: "kakao",
         addedAt: new Date().toISOString()
       });
 

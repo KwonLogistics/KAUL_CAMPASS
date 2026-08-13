@@ -28,7 +28,7 @@ export default function ScheduleTab() {
   const [selectedDateISO, setSelectedDateISO] = useState<string>("2026-08-13");
   const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
 
-  const { scheduled, hydrated, addScheduled } = useAppState();
+  const { scheduled, hydrated, addScheduled, removeScheduled } = useAppState();
 
   const handleRegisterMock = (order: SpotOrder) => {
     setAssistGap(null);
@@ -526,7 +526,14 @@ export default function ScheduleTab() {
 
       {/* 스케줄 카드 상세 시트 */}
       {selectedItem && (
-        <ScheduleDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} />
+        <ScheduleDetailModal
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+          onDelete={(orderId) => {
+            removeScheduled(orderId);
+            setSelectedItem(null);
+          }}
+        />
       )}
 
       {/* 스마트 경로 어시스트 (90분 이상 공백에서 "AI 스마트 경로 추천 받기" 클릭 시) */}
