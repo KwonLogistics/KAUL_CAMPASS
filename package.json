@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "validate:mock": "npx tsx src/data/validate-mock.ts"
   },
   "dependencies": {
     "next": "16.3.0",
