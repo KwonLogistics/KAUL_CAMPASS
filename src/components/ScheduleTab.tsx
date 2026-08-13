@@ -67,7 +67,7 @@ export default function ScheduleTab() {
   // 순범: schedule-store.ts(실제 등록된 외부 오더)를 지수의 scheduleItems 파이프라인에 합류시킨다.
   // mock-schedule.ts 주석이 이 자리를 비워뒀다 — "지금은 그 저장소가 비어 있어서 안 씀".
   // convertSpotOrderToScheduleItem은 source로 카카오/외부를 안 가리므로 그대로 재사용한다.
-  const { scheduled, hydrated } = useAppState();
+  const { scheduled, hydrated, removeScheduled } = useAppState();
   const externalItems = useMemo(
     () => (hydrated ? scheduled.map((s) => convertSpotOrderToScheduleItem(s.order)) : []),
     [scheduled, hydrated],
@@ -509,7 +509,14 @@ export default function ScheduleTab() {
 
       {/* 스케줄 카드 상세 시트 */}
       {selectedItem && (
-        <ScheduleDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} />
+        <ScheduleDetailModal
+          item={selectedItem}
+          onClose={() => setSelectedItem(null)}
+          onDelete={(orderId) => {
+            removeScheduled(orderId);
+            setSelectedItem(null);
+          }}
+        />
       )}
 
       {/* 스마트 경로 어시스트 — 90분 이상 공백에서 "AI 스마트 경로 추천 받기" 클릭 시 */}

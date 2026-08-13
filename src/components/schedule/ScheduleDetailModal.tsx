@@ -20,9 +20,11 @@ function formatWon(amount: number): string {
 export default function ScheduleDetailModal({
   item,
   onClose,
+  onDelete,
 }: {
   item: ScheduleItem;
   onClose: () => void;
+  onDelete?: (orderId: string) => void;
 }) {
   const metaBadges = getMetaBadges(item);
   const conditionBadges = getConditionBadges(item);
@@ -30,6 +32,7 @@ export default function ScheduleDetailModal({
   const fareTotal = getFareTotal(item);
   const haulKm = getHaulKm(item);
 
+  const isExternal = "source" in item.order && item.order.source === "external";
   const spotOrder = item.orderKind === "spot" ? (item.order as SpotOrder) : null;
   const pastTrip = item.orderKind === "past" ? (item.order as PastTrip) : null;
   const fixedSchedule = item.orderKind === "fixed" ? (item.order as FixedSchedule) : null;
@@ -39,7 +42,7 @@ export default function ScheduleDetailModal({
       <div className="max-h-[85vh] overflow-y-auto rounded-t-2xl bg-white p-5 pb-10">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-[17px] font-bold text-gray-900">운행 상세</h2>
-          <button onClick={onClose} className="text-[22px] leading-none text-gray-400">
+          <button onClick={onClose} className="text-[22px] leading-none text-gray-400 cursor-pointer">
             ×
           </button>
         </div>
@@ -206,6 +209,18 @@ export default function ScheduleDetailModal({
           <span>화주: {item.order.shipper}</span>
           {(spotOrder || pastTrip) && <span>등록 {(spotOrder ?? pastTrip)!.postedAt}</span>}
         </div>
+
+        {/* 외부 등록 오더인 경우 삭제 버튼 제공 */}
+        {isExternal && onDelete && (
+          <div className="mt-5 pt-3 border-t border-gray-100">
+            <button
+              onClick={() => onDelete(item.order.id)}
+              className="w-full py-3 rounded-lg border border-red-200 text-red-600 bg-red-50/70 hover:bg-red-100 text-[13px] font-bold cursor-pointer transition-colors shadow-2xs"
+            >
+              이 외부 스케줄 삭제하기
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
