@@ -28,6 +28,7 @@ import { DEFAULT_SETTINGS } from "@/lib/store/settings-store";
 import CallMetrics from "@/components/common/CallMetrics";
 import InfoDot from "@/components/common/InfoDot";
 import AutoDispatchSettingsModal from "@/components/cargo/AutoDispatchSettingsModal";
+import { TODAY_ISO } from "@/data/mock-data";
 
 type SortKey =
   | "latest"
@@ -154,7 +155,64 @@ function CargoInfoContent() {
   const [sort, setSort] = useState<SortKey>(initialSort);
   const [recommendHintOpen, setRecommendHintOpen] = useState(false);
   const [autoDispatchOpen, setAutoDispatchOpen] = useState(false);
-  const { settings, hydrated } = useAppState();
+  const [matchedOrder, setMatchedOrder] = useState<SpotOrder | null>(null);
+  const { settings, hydrated, addScheduled } = useAppState();
+
+  const handleRegisterMock = () => {
+    setAutoDispatchOpen(false);
+    // 1.5초 후 자동 배차 성공으로 간주하고 스케줄에 추가, 그리고 토스트 알림 띄우기
+    setTimeout(() => {
+      // Create a dummy mock order that matches the AI condition
+      const mockOrder: SpotOrder = {
+        id: `auto-${Date.now()}`,
+        source: "카카오T",
+        shipper: "자동배차(AI)",
+        pickup: {
+          sido: "경기",
+          sigungu: "용인시",
+          dong: "기흥구",
+          addressDetail: "자동배차",
+          dateExpr: "내일",
+          dateISO: "2026-08-14",
+          time: "09:00",
+          manual: false,
+          forklift: true
+        },
+        dropoff: {
+          sido: "부산",
+          sigungu: "전체",
+          dong: "",
+          addressDetail: "",
+          dateExpr: "모레이후",
+          dateISO: "2026-08-15",
+          time: "14:00",
+          manual: false,
+          forklift: false
+        },
+        vehicle: { ton: 5, body: "윙바디" },
+        loadOption: "독차",
+        distance: { toPickupKm: 15, haulKm: 320 },
+        durationMin: 300,
+        fare: {
+          base: 300000,
+          extraManual: 0,
+          total: 300000,
+          settle: "선착불"
+        },
+        remarksRaw: "원터치 자동 배차 테스트 오더",
+        conditions: []
+      };
+
+      addScheduled({
+        order: mockOrder,
+        dateISO: TODAY_ISO,
+        via: "auto",
+        addedAt: new Date().toISOString()
+      });
+
+      setMatchedOrder(mockOrder);
+    }, 1500);
+  };
 
   // URL 파라미터로 sort가 전달되었거나 선호지역 설정이 있는 경우 추천순 정렬 반영
   useEffect(() => {
@@ -174,12 +232,50 @@ function CargoInfoContent() {
 
   const orders = useMemo(
     () => sortOrders(kakaoOrders, sort, effectiveSettings, hour),
-    [sort, effectiveSettings, hour],
+    [sort, effectiveSettings, hour, kakaoOrders],
   );
   const note = SORT_NOTE[sort];
 
   return (
-    <div className="flex flex-col absolute inset-0 pb-[60px] bg-[#f4f4f6]">
+    <div className="relative flex h-full flex-col bg-[#f4f4f6]">
+      {/* 매칭 성공 모달 */}
+      {matchedOrder && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm rounded-xl bg-white shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-[#3b5bdb] px-5 py-4 text-white text-center">
+              <div className="text-[24px] mb-1">🎉</div>
+              <h2 className="text-lg font-bold">자동 배차 성공!</h2>
+              <p className="text-white/80 text-[13px] mt-1">설정한 조건에 딱 맞는 오더를 스케줄에 등록했습니다.</p>
+            </div>
+            <div className="p-5">
+              <div className="rounded-lg bg-gray-50 border border-gray-100 p-4">
+                <div className="flex items-center justify-between mb-3 border-b border-gray-200 pb-3">
+                  <div className="font-bold text-gray-900">{matchedOrder.pickup.sido} {matchedOrder.pickup.sigungu}</div>
+                  <div className="text-gray-400">➔</div>
+                  <div className="font-bold text-gray-900">{matchedOrder.dropoff.sido} {matchedOrder.dropoff.sigungu || ""}</div>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-[13px] text-gray-500">차량/옵션</span>
+                  <span className="text-[13px] font-bold text-gray-700">
+                    {matchedOrder.vehicle.ton}톤 {matchedOrder.vehicle.body} · {matchedOrder.loadOption}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center text-[#f05c2a]">
+                  <span className="text-[13px] font-bold">확정 운임</span>
+                  <span className="text-[16px] font-extrabold">{matchedOrder.fare.total.toLocaleString()}원</span>
+                </div>
+              </div>
+              <button 
+                onClick={() => setMatchedOrder(null)}
+                className="mt-4 w-full rounded-md bg-[#3b5bdb] py-3 text-[14px] font-bold text-white hover:bg-blue-700 transition-colors"
+              >
+                확인
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="shrink-0 bg-[#3b5bdb] text-white flex justify-between items-center px-4 py-3 z-20">
         <h1 className="text-lg font-bold">화물 정보</h1>
@@ -346,7 +442,7 @@ function CargoInfoContent() {
       </div>
 
       {/* Floating Button (Bottom Right) */}
-      <div className="absolute bottom-[80px] right-4 z-30 flex justify-end">
+      <div className="absolute bottom-[70px] right-4 z-30 flex justify-end">
         <button
           onClick={() => setAutoDispatchOpen(true)}
           className="bg-[#f4f7ff]/95 backdrop-blur-sm border border-[#3b5bdb] text-[#3b5bdb] shadow-lg rounded-full px-5 py-2.5 font-bold text-[13px] flex items-center justify-center transition-transform hover:scale-105"
@@ -356,7 +452,10 @@ function CargoInfoContent() {
       </div>
 
       {autoDispatchOpen && (
-        <AutoDispatchSettingsModal onClose={() => setAutoDispatchOpen(false)} />
+        <AutoDispatchSettingsModal 
+          onClose={() => setAutoDispatchOpen(false)} 
+          onRegisterMock={handleRegisterMock}
+        />
       )}
     </div>
   );
