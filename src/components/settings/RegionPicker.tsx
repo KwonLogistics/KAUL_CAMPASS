@@ -61,7 +61,7 @@ export default function RegionPicker({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-center bg-black/20">
+    <div className="fixed inset-0 z-[70] flex justify-center bg-black/20">
       <div className="flex h-full w-full max-w-[480px] flex-col bg-white">
         {/* Header */}
         <div className="flex shrink-0 items-center border-b border-gray-100 px-4 py-4">
