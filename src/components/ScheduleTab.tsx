@@ -328,12 +328,12 @@ export default function ScheduleTab() {
       {/* Floating Buttons (Fixed to the screen) */}
       <div className="fixed bottom-[80px] w-full max-w-[480px] px-4 flex justify-between z-30 pointer-events-none">
         
-        {/* 운행 기록 리포트 버튼 (왼쪽 하단 고정) */}
+        {/* 운행 리포트 버튼 (왼쪽 하단 고정) */}
         <button 
           onClick={() => setShowReportModal(true)}
           className="pointer-events-auto bg-[#3b5bdb] hover:bg-[#324ec7] text-white shadow-lg rounded-full py-3.5 px-6 font-bold text-[14px] flex items-center justify-center transition-transform hover:scale-105 border border-[#3b5bdb] cursor-pointer"
         >
-          운행 기록 리포트
+          운행 리포트
         </button>
 
         {/* 외부 스케줄 추가 버튼 (오른쪽 하단 고정) */}
