@@ -101,9 +101,12 @@ export interface RestWarning {
    ──────────────────────────────────────────────────────────────── */
 
 export interface DaySettings {
-  /** 오더 축 — 어떤 오더를 목록에 볼까 */
-  preferPickup: string;
-  preferDropoff: string;
+  /**
+   * 오더 축 — 어떤 오더를 목록에 볼까.
+   * 지역 라벨 배열이다("서울 전체" · "경기 남 화성시"). 원래 앱처럼 여러 곳을 고른다.
+   */
+  preferPickup: string[];
+  preferDropoff: string[];
   /** 하루 축 — 내 하루가 어디서 시작해서 어디서 끝나나 */
   dayStart: string;
   dayEnd: string;

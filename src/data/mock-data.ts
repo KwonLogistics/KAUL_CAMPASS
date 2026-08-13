@@ -203,6 +203,20 @@ export function renderDateBadge(o: {
   return `${md(o.pickup.dateISO)} 상차 · ${md(o.dropoff.dateISO)} 하차`;
 }
 
+/**
+ * 상·하차 배지("당상"·"내착"…). 목록 카드와 상세 화면이 같은 배지를 쓰도록
+ * 화면마다 만들지 않고 여기서 날짜 버킷 + 달력으로 파생한다.
+ */
+export function dayTagOf(
+  w: { date: DateBucket; dateISO: string },
+  isPickup: boolean,
+): string {
+  if (w.date === "D+0") return isPickup ? "당상" : "당착";
+  if (w.date === "D+1") return isPickup ? "내상" : "내착";
+  if (CALENDAR_2026_08[w.dateISO] === "월") return isPickup ? "월상" : "월착";
+  return isPickup ? "상차" : "하차";
+}
+
 /** 야상 판정 — 검증할 제약(R)이 아니라 계산되는 파생 플래그 */
 export function isOvernightLoad(o: {
   pickup: { time: string; dateISO: string };

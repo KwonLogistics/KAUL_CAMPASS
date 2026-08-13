@@ -21,6 +21,7 @@ import {
   DEFAULT_SETTINGS,
   SETTINGS_STORAGE_KEY,
   applyRoute,
+  normalizeSettings,
 } from "./settings-store";
 import {
   SCHEDULE_STORAGE_KEY,
@@ -53,7 +54,7 @@ function loadSettings(): DaySettings {
   if (typeof window === "undefined") return DEFAULT_SETTINGS;
   try {
     const s = localStorage.getItem(SETTINGS_STORAGE_KEY);
-    return s ? { ...DEFAULT_SETTINGS, ...JSON.parse(s) } : DEFAULT_SETTINGS;
+    return s ? normalizeSettings(JSON.parse(s)) : DEFAULT_SETTINGS;
   } catch {
     // 저장값이 깨졌으면 기본값으로 간다. 데모 중에 흰 화면이 뜨는 게 최악이다.
     return DEFAULT_SETTINGS;
