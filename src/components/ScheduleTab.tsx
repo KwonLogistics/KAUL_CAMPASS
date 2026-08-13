@@ -4,6 +4,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import AiReportModal from '@/components/report/AiReportModal';
 import { scheduleItems } from './schedule/mock-schedule';
 import { buildDayTimeline } from './schedule/timeline';
+import { getMetaBadges, getConditionBadges } from './schedule/badges';
+import ScheduleDetailModal from './schedule/ScheduleDetailModal';
+import type { ScheduleItem } from './schedule/types';
 
 const STATUS_LABEL: Record<string, string> = {
   scheduled: '예정',
@@ -16,7 +19,8 @@ export default function ScheduleTab() {
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('calendar');
   const [calendarMode, setCalendarMode] = useState<'weekly' | 'monthly'>('weekly');
   const [showReportModal, setShowReportModal] = useState<boolean>(false);
-  
+  const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
+
   const [selectedDate, setSelectedDate] = useState<number>(13);
   const weekDays = ['월', '화', '수', '목', '금', '토', '일'];
   const weekDates = [10, 11, 12, 13, 14, 15, 16]; 
@@ -91,16 +95,22 @@ export default function ScheduleTab() {
           ) : (
             <div className="flex-1 divide-y divide-gray-100 overflow-y-auto bg-white">
               {scheduleItems.map(item => {
-                const isExternal = item.order.source === 'external';
+                const metaBadges = getMetaBadges(item.order);
                 return (
-                  <div key={item.id} className="flex flex-col gap-1 px-4 py-3">
-                    <div className="flex items-center gap-1.5">
+                  <div
+                    key={item.id}
+                    onClick={() => setSelectedItem(item)}
+                    className="flex flex-col gap-1 px-4 py-3 cursor-pointer hover:bg-gray-50"
+                  >
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-[11px] font-bold text-gray-400">
                         {item.date} {item.loadingStart ?? '미기재'}
                       </span>
-                      <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${isExternal ? 'bg-gray-100 text-gray-500' : 'bg-[#f4f7ff] text-[#3b5bdb]'}`}>
-                        {isExternal ? '외부' : '카카오'}
-                      </span>
+                      {metaBadges.map(b => (
+                        <span key={b} className="rounded bg-[#f4f7ff] px-1.5 py-0.5 text-[10px] font-bold text-[#3b5bdb]">
+                          {b}
+                        </span>
+                      ))}
                       <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-500">
                         {STATUS_LABEL[item.status]}
                       </span>
@@ -210,37 +220,63 @@ export default function ScheduleTab() {
                   const bgColor = isExternal ? 'bg-[#f8f9fa]' : 'bg-[#eef2ff]';
                   const borderColor = isExternal ? 'border-gray-400' : 'border-[#3b5bdb]';
                   const titleColor = isExternal ? 'text-gray-500' : 'text-[#3b5bdb]';
-                  const loadingMethod = item.order.conditions
-                    .filter(c => c.type === '상하차방식')
-                    .map(c => c.value)
-                    .join(' · ');
-                  const cargoInfo = item.order.conditions
-                    .filter(c => c.type !== '상하차방식')
-                    .map(c => c.value)
-                    .join(' · ');
+
+                  const metaBadges = getMetaBadges(item.order);
+                  const conditionBadges = getConditionBadges(item.order);
+                  const visibleConditions = conditionBadges.slice(0, 4);
+                  const extraCount = conditionBadges.length - visibleConditions.length;
+
+                  // 카드가 낮으면(짧은 운행) 배지 줄부터 순서대로 생략해서 안 찌그러지게 한다
+                  const showConditions = height >= 100;
+                  const showMeta = height >= 60;
 
                   return (
                     <div
                       key={item.id}
-                      className={`absolute left-3 right-4 ${bgColor} border-l-[4px] ${borderColor} rounded-r-md p-3 shadow-sm flex flex-col cursor-pointer transition-colors hover:shadow-md z-10`}
+                      onClick={() => setSelectedItem(item)}
+                      className={`absolute left-3 right-4 ${bgColor} border-l-[4px] ${borderColor} rounded-r-md p-2.5 shadow-sm flex flex-col overflow-hidden cursor-pointer transition-colors hover:shadow-md z-10`}
                       style={{ top: `${topOffset}px`, height: `${height}px` }}
                     >
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <span className={`text-[10px] font-bold ${titleColor}`}>
-                          {item.loadingStart} - {item.unloadingStart}
-                        </span>
-                        <span className={`rounded px-1 py-0.5 text-[9px] font-bold ${isExternal ? 'bg-gray-200 text-gray-500' : 'bg-[#e4eaff] text-[#3b5bdb]'}`}>
-                          {isExternal ? '외부' : '카카오'} · {item.order.vehicle.ton}톤 {item.order.vehicle.body} · {item.order.loadOption}
-                        </span>
-                      </div>
-                      <span className="text-[13px] font-bold text-gray-900 leading-tight truncate">
+                      <span className={`text-[10px] font-bold ${titleColor} mb-1`}>
+                        {item.loadingStart} - {item.unloadingStart}
+                      </span>
+
+                      {/* 1순위: 상단 메타 배지 — 출처 · 차량요건 · 적재형태 */}
+                      {showMeta && (
+                        <div className="mb-1 flex flex-wrap gap-1">
+                          {metaBadges.map(b => (
+                            <span
+                              key={b}
+                              className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${isExternal ? 'bg-gray-200 text-gray-500' : 'bg-[#e4eaff] text-[#3b5bdb]'}`}
+                            >
+                              {b}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* 2순위: 운행 경로 */}
+                      <span className="text-[14px] font-extrabold text-gray-900 leading-tight truncate">
                         {item.order.pickup.sido} {item.order.pickup.sigungu} → {item.order.dropoff.sido} {item.order.dropoff.sigungu}
                       </span>
-                      {loadingMethod && (
-                        <span className="text-[11px] text-gray-600 mt-1 truncate">상하차: {loadingMethod}</span>
-                      )}
-                      {cargoInfo && (
-                        <span className="text-[11px] text-gray-500 mt-0.5 truncate">{cargoInfo}</span>
+
+                      {/* 3순위: 작업 조건 스티커 — 핵심 4개 + 나머지는 +N */}
+                      {showConditions && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {visibleConditions.map((b, idx) => (
+                            <span
+                              key={`${b}-${idx}`}
+                              className="rounded bg-white/70 px-1.5 py-0.5 text-[9px] font-bold text-gray-600 border border-gray-200"
+                            >
+                              {b}
+                            </span>
+                          ))}
+                          {extraCount > 0 && (
+                            <span className="rounded bg-white/70 px-1.5 py-0.5 text-[9px] font-bold text-gray-400 border border-gray-200">
+                              +{extraCount}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
                   );
@@ -279,6 +315,11 @@ export default function ScheduleTab() {
       {/* 운행 기록 리포트 모달 */}
       {showReportModal && (
         <AiReportModal onClose={() => setShowReportModal(false)} />
+      )}
+
+      {/* 스케줄 카드 상세 시트 */}
+      {selectedItem && (
+        <ScheduleDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} />
       )}
     </div>
   );
