@@ -10,8 +10,9 @@
  * 목록에서 오더를 빼지 않는다. 순서만 바꾸고, 왜 그 순서인지 한 줄로 쓴다.
  */
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   spotOrders,
   isOvernightLoad,
@@ -144,11 +145,25 @@ function badgesOf(order: SpotOrder): string[] {
   return out;
 }
 
-export default function CargoInfo() {
+function CargoInfoContent() {
+  const searchParams = useSearchParams();
+  const initialSort = (searchParams.get("sort") as SortKey) || "latest";
+
   const [sortOpen, setSortOpen] = useState(false);
-  const [sort, setSort] = useState<SortKey>("latest");
+  const [sort, setSort] = useState<SortKey>(initialSort);
   const [recommendHintOpen, setRecommendHintOpen] = useState(false);
   const { settings, hydrated } = useAppState();
+
+  // URL 파라미터로 sort가 전달되었거나 선호지역 설정이 있는 경우 추천순 정렬 반영
+  useEffect(() => {
+    const paramSort = searchParams.get("sort") as SortKey | null;
+    if (paramSort && Object.keys(SORT_LABEL).includes(paramSort)) {
+      setSort(paramSort);
+    } else if (hydrated && (settings.dayStart || settings.dayEnd)) {
+      // 선호 출발지/복귀점이 설정되어 있으면 추천순을 기본으로 활성화
+      setSort("recommend");
+    }
+  }, [searchParams, hydrated, settings.dayStart, settings.dayEnd]);
 
   // localStorage 복원 전에는 항상 빈 설정으로 본다 — 서버 렌더와 클라 첫 렌더의
   // 정렬 결과가 갈리면 목록 순서가 하이드레이션 중에 눈에 띄게 뒤바뀐다.
@@ -336,5 +351,13 @@ export default function CargoInfo() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function CargoInfo() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#f4f4f6]" />}>
+      <CargoInfoContent />
+    </Suspense>
   );
 }

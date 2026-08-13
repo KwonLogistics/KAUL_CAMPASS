@@ -22,6 +22,7 @@
  */
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAppState } from "@/lib/store/AppStateProvider";
 import InfoDot from "@/components/common/InfoDot";
 import RegionPicker from "@/components/settings/RegionPicker";
@@ -54,10 +55,15 @@ const AXIS_META: Record<
 };
 
 export default function LocationSettings() {
+  const router = useRouter();
   const { settings, updateSettings, hydrated } = useAppState();
   const [radius, setRadius] = useState(60);
   const [picking, setPicking] = useState<Target | null>(null);
   const [hint, setHint] = useState<Axis | null>(null);
+
+  const handleClose = () => {
+    router.push("/cargo?sort=recommend");
+  };
 
   const dayValue = (a: Axis) =>
     hydrated ? (a === "start" ? settings.dayStart : settings.dayEnd) : "";
@@ -166,7 +172,7 @@ export default function LocationSettings() {
     <div className="flex flex-col min-h-screen bg-[#f4f4f6] pb-[80px]">
       {/* Header */}
       <div className="flex items-center px-4 py-4 bg-white sticky top-0 z-20 border-b border-gray-100">
-        <button onClick={() => window.history.back()} className="text-gray-800 mr-4">
+        <button onClick={handleClose} className="text-gray-800 mr-4 cursor-pointer" aria-label="닫기">
           <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
         </button>
         <h1 className="text-lg font-bold text-gray-900">선호 지역 설정</h1>
