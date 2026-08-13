@@ -11,16 +11,17 @@ body {
   background-color: #e5e5e5;
   display: flex;
   justify-content: center;
-  min-height: 100vh;
+  height: 100dvh; /* Changed from min-height */
   margin: 0;
   padding: 0;
+  overflow: hidden; /* Prevent global body scroll */
 }
 
 .mobile-container {
   width: 100%;
   max-width: 480px;
   background-color: #f8f9fa;
-  min-height: 100vh;
+  height: 100%; /* Take full height of body */
   box-shadow: 0 0 20px rgba(0,0,0,0.05);
   position: relative;
   display: flex;
