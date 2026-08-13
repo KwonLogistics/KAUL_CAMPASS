@@ -15,8 +15,10 @@ const TON_OPTIONS = ["전체", "1톤", "1.4톤", "2.5톤", "3.5톤", "5톤", "11
 
 export default function AutoDispatchSettingsModal({
   onClose,
+  onRegisterMock,
 }: {
   onClose: () => void;
+  onRegisterMock?: () => void;
 }) {
   const { settings, updateSettings, hydrated } = useAppState();
   const [prompt, setPrompt] = useState("");
@@ -371,7 +373,13 @@ export default function AutoDispatchSettingsModal({
       </div>
 
       {/* Footer */}
-      <div className="absolute bottom-0 w-full bg-[#3b5bdb] text-white text-center py-4 font-bold text-[16px] cursor-pointer">
+      <div 
+        onClick={() => {
+          if (onRegisterMock) onRegisterMock();
+          else onClose();
+        }}
+        className="absolute bottom-0 w-full bg-[#3b5bdb] text-white text-center py-4 font-bold text-[16px] cursor-pointer hover:bg-blue-700 transition-colors"
+      >
         원터치배차 등록하기
       </div>
     </div>
