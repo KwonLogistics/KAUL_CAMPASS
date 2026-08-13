@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import AiReportModal from '@/components/report/AiReportModal';
 import { scheduleItems } from './schedule/mock-schedule';
 import { buildDayTimeline } from './schedule/timeline';
-import { getMetaBadges, getConditionBadges } from './schedule/badges';
+import { getMetaBadges, getConditionBadges, getRouteLabel, getFareTotal } from './schedule/badges';
 import ScheduleDetailModal from './schedule/ScheduleDetailModal';
 import type { ScheduleItem } from './schedule/types';
 
@@ -95,7 +95,7 @@ export default function ScheduleTab() {
           ) : (
             <div className="flex-1 divide-y divide-gray-100 overflow-y-auto bg-white">
               {scheduleItems.map(item => {
-                const metaBadges = getMetaBadges(item.order);
+                const metaBadges = getMetaBadges(item);
                 return (
                   <div
                     key={item.id}
@@ -116,10 +116,10 @@ export default function ScheduleTab() {
                       </span>
                     </div>
                     <span className="text-[14px] font-bold text-gray-900 truncate">
-                      {item.order.pickup.sido} {item.order.pickup.sigungu} → {item.order.dropoff.sido} {item.order.dropoff.sigungu}
+                      {getRouteLabel(item)}
                     </span>
                     <span className="text-[13px] font-bold text-gray-700">
-                      {item.order.fare.total.toLocaleString()}원
+                      {getFareTotal(item).toLocaleString()}원
                     </span>
                   </div>
                 );
@@ -216,13 +216,30 @@ export default function ScheduleTab() {
                   }
 
                   const item = block.item;
-                  const isExternal = item.order.source === 'external';
+                  // FixedSchedule엔 source 필드 자체가 없다 — 있는 경우에만 외부 여부를 판단한다
+                  const isExternal = 'source' in item.order && item.order.source === 'external';
+                  const isCompleted = item.status === 'completed';
+                  const isInProgress = item.status === 'in_progress';
+
                   const bgColor = isExternal ? 'bg-[#f8f9fa]' : 'bg-[#eef2ff]';
-                  const borderColor = isExternal ? 'border-gray-400' : 'border-[#3b5bdb]';
+                  // 상태가 완료/진행중이면 출처 색보다 상태 색을 우선한다. 예정(기본)은 기존 출처 기준 유지
+                  const borderColor = isCompleted
+                    ? 'border-gray-300'
+                    : isInProgress
+                      ? 'border-[#3b5bdb]'
+                      : isExternal ? 'border-gray-400' : 'border-[#3b5bdb]';
+                  const borderWidth = isInProgress ? 'border-l-[6px]' : 'border-l-[4px]';
                   const titleColor = isExternal ? 'text-gray-500' : 'text-[#3b5bdb]';
 
-                  const metaBadges = getMetaBadges(item.order);
-                  const conditionBadges = getConditionBadges(item.order);
+                  const statusBadge =
+                    isCompleted
+                      ? { label: '완료', className: 'bg-gray-200 text-gray-500' }
+                      : isInProgress
+                        ? { label: '진행 중', className: 'bg-[#3b5bdb] text-white' }
+                        : { label: '예정', className: 'bg-gray-100 text-gray-400' };
+
+                  const metaBadges = getMetaBadges(item);
+                  const conditionBadges = getConditionBadges(item);
                   const visibleConditions = conditionBadges.slice(0, 4);
                   const extraCount = conditionBadges.length - visibleConditions.length;
 
@@ -234,10 +251,16 @@ export default function ScheduleTab() {
                     <div
                       key={item.id}
                       onClick={() => setSelectedItem(item)}
-                      className={`absolute left-3 right-4 ${bgColor} border-l-[4px] ${borderColor} rounded-r-md p-2.5 shadow-sm flex flex-col overflow-hidden cursor-pointer transition-colors hover:shadow-md z-10`}
+                      className={`absolute left-3 right-4 ${bgColor} ${borderWidth} ${borderColor} rounded-r-md p-2.5 shadow-sm flex flex-col overflow-hidden cursor-pointer transition-colors hover:shadow-md z-10 ${isInProgress ? 'ring-1 ring-[#3b5bdb]/30' : ''}`}
                       style={{ top: `${topOffset}px`, height: `${height}px` }}
                     >
-                      <span className={`text-[10px] font-bold ${titleColor} mb-1`}>
+                      {/* 우측 상단 상태 배지 */}
+                      <span className={`absolute top-1.5 right-1.5 flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold ${statusBadge.className}`}>
+                        {isInProgress && <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />}
+                        {statusBadge.label}
+                      </span>
+
+                      <span className={`text-[10px] font-bold ${titleColor} mb-1 pr-12`}>
                         {item.loadingStart} - {item.unloadingStart}
                       </span>
 
@@ -257,7 +280,7 @@ export default function ScheduleTab() {
 
                       {/* 2순위: 운행 경로 */}
                       <span className="text-[14px] font-extrabold text-gray-900 leading-tight truncate">
-                        {item.order.pickup.sido} {item.order.pickup.sigungu} → {item.order.dropoff.sido} {item.order.dropoff.sigungu}
+                        {getRouteLabel(item)}
                       </span>
 
                       {/* 3순위: 작업 조건 스티커 — 핵심 4개 + 나머지는 +N */}

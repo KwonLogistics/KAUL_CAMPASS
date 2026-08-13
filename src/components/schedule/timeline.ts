@@ -40,9 +40,12 @@ function toMinutes(hhmm: string): number {
 
 function toTimedItem(item: ScheduleItem): TimedItem | null {
   if (!item.loadingStart || !item.unloadingStart) return null;
-  const isOvernight = item.order.dropoff.dateISO !== item.order.pickup.dateISO;
   const startMin = toMinutes(item.loadingStart);
-  const endMin = isOvernight ? 24 * 60 : toMinutes(item.unloadingStart);
+  const rawEndMin = toMinutes(item.unloadingStart);
+  // 하차 시각(시계 기준)이 상차 시각보다 이르면 자정을 넘긴 것 — order 모양과 무관하게
+  // loadingStart/unloadingStart만으로 판단한다(SpotOrder/PastTrip/FixedSchedule 공통).
+  const isOvernight = rawEndMin < startMin;
+  const endMin = isOvernight ? 24 * 60 : rawEndMin;
   return { item, startMin, endMin };
 }
 
