@@ -3,26 +3,18 @@
 import React, { useState, useRef, useEffect } from "react";
 import AiReportModal from "@/components/report/AiReportModal";
 import MonthlyCalendar from "@/components/MonthlyCalendar";
-import { pastTrips, fixedSchedules, TODAY_ISO } from "@/data/mock-data";
-
-interface ScheduleItem {
-  id: string | number;
-  date: number; // 10 ~ 16
-  startHour: number;
-  startMin: number;
-  endHour: number;
-  endMin: number;
-  title: string;
-  desc1: string;
-  desc2: string;
-  type: "kakao" | "external" | "fixed";
-  fare?: number;
-}
+import { scheduleItems } from "./schedule/mock-schedule";
+import { buildDayTimeline } from "./schedule/timeline";
+import { getMetaBadges, getConditionBadges, getRouteLabel, getFareTotal } from "./schedule/badges";
+import ScheduleDetailModal from "./schedule/ScheduleDetailModal";
+import type { ScheduleItem } from "./schedule/types";
+import { STATUS_LABEL, STATUS_STYLE } from "./schedule/status-style";
 
 export default function ScheduleTab() {
   const [viewMode, setViewMode] = useState<"list" | "calendar">("calendar");
   const [calendarMode, setCalendarMode] = useState<"weekly" | "monthly">("weekly");
   const [showReportModal, setShowReportModal] = useState<boolean>(false);
+  const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
 
   const [selectedDate, setSelectedDate] = useState<number>(13);
   const weekDays = ["월", "화", "수", "목", "금", "토", "일"];
@@ -33,132 +25,20 @@ export default function ScheduleTab() {
 
   const HOUR_HEIGHT = 80;
 
-  // mock-data.ts 기반 실제 주간 스케줄 생성 (8/10 ~ 8/16)
-  // 과거(8/10~8/12): pastTrips
-  // 오늘 및 미래(8/13~8/16): fixedSchedules
-  const schedules: ScheduleItem[] = [
-    // 8/10 (월) - pastTrips PT-0810-1, PT-0810-2
-    {
-      id: "PT-0810-1",
-      date: 10,
-      startHour: 9,
-      startMin: 30,
-      endHour: 10,
-      endMin: 50,
-      title: "화성 동탄 ➔ 아산 둔포 (대륙정공)",
-      desc1: "5톤 윙바디 · 독차",
-      desc2: "파렛트 5개 / 지게차 상하차",
-      type: "kakao",
-      fare: 108000,
-    },
-    {
-      id: "PT-0810-2",
-      date: 10,
-      startHour: 14,
-      startMin: 0,
-      endHour: 16,
-      endMin: 20,
-      title: "아산 둔포 ➔ 인천 중구 (우진로지스)",
-      desc1: "5톤 윙바디 · 독차",
-      desc2: "상차지 대기 발생 (실제 2시간 10분 소요)",
-      type: "kakao",
-      fare: 188000,
-    },
+  // selectedDate(일자 숫자) → "YYYY-MM-DD". 기존 요일 선택 UI는 8월 고정
+  const selectedDateISO = `2026-08-${selectedDate.toString().padStart(2, "0")}`;
 
-    // 8/11 (화) - pastTrips PT-0811-1, PT-0811-2
-    {
-      id: "PT-0811-1",
-      date: 11,
-      startHour: 8,
-      startMin: 0,
-      endHour: 10,
-      endMin: 20,
-      title: "이천 부발 ➔ 서울 강서 (미래식품)",
-      desc1: "5톤 윙바디 · 독차",
-      desc2: "파렛트 8개 / 지게차 상하차",
-      type: "kakao",
-      fare: 168000,
-    },
-    {
-      id: "PT-0811-2",
-      date: 11,
-      startHour: 13,
-      startMin: 30,
-      endHour: 14,
-      endMin: 40,
-      title: "서울 강서 ➔ 일산 성석 (우성목재)",
-      desc1: "5톤 카고 · 독차",
-      desc2: "각재 / 윙 양쪽 개방 필요",
-      type: "kakao",
-      fare: 124000,
-    },
+  const currentDaySchedules = scheduleItems.filter((item) => item.date === selectedDateISO);
 
-    // 8/12 (수) - pastTrips PT-0812-1, PT-0812-2
-    {
-      id: "PT-0812-1",
-      date: 12,
-      startHour: 9,
-      startMin: 0,
-      endHour: 11,
-      endMin: 20,
-      title: "화성 향남 ➔ 청주 오송 (대성정밀)",
-      desc1: "5톤 윙바디 · 독차",
-      desc2: "지게차 상하차 / 파렛트 12개 / 연휴 전 물량",
-      type: "kakao",
-      fare: 190000,
-    },
-    {
-      id: "PT-0812-2",
-      date: 12,
-      startHour: 14,
-      startMin: 30,
-      endHour: 17,
-      endMin: 0,
-      title: "청주 오송 ➔ 시흥 정왕 (동양기전)",
-      desc1: "5톤 윙바디 · 독차",
-      desc2: "파렛트 11개 / 지게차 상하차",
-      type: "kakao",
-      fare: 196000,
-    },
-
-    // 8/13 (목, 오늘) - fixedSchedules FS-02 (대륙정공, 매주 화·목)
-    {
-      id: "FS-02-today",
-      date: 13,
-      startHour: 9,
-      startMin: 30,
-      endHour: 10,
-      endMin: 50,
-      title: "경기 화성시 동탄면 ➔ 충남 아산시 둔포면 (대륙정공)",
-      desc1: "5톤 윙바디 · 독차 (고정 스케줄)",
-      desc2: "정기 납품 / 파렛트 5개",
-      type: "fixed",
-      fare: 110000,
-    },
-
-    // 8/14 (금, 내일) - fixedSchedules FS-01 (대성정밀, 매주 월·수·금)
-    {
-      id: "FS-01-tomorrow",
-      date: 14,
-      startHour: 9,
-      startMin: 0,
-      endHour: 11,
-      endMin: 20,
-      title: "경기 화성시 향남읍 ➔ 충북 청주시 오송읍 (대성정밀)",
-      desc1: "5톤 윙바디 · 독차 (고정 스케줄)",
-      desc2: "정기 납품 / 지게차 상하차 / 파렛트 12개",
-      type: "fixed",
-      fare: 190000,
-    },
-  ];
-
-  const currentDaySchedules = schedules.filter((s) => s.date === selectedDate);
+  // 겹치는 후보 오더 중 겹치지 않는 하루 체인만 뽑고, 그 사이 공백에 휴식/공차 블록을 끼워 넣는다
+  const dayBlocks = buildDayTimeline(currentDaySchedules);
+  const tripBlocks = dayBlocks.filter((b) => b.kind === "trip");
 
   // 가장 이른 스케줄 기준으로 자동 스크롤
   useEffect(() => {
     if (viewMode === "calendar" && calendarMode === "weekly" && scrollContainerRef.current) {
-      if (currentDaySchedules.length > 0) {
-        const earliestHour = Math.min(...currentDaySchedules.map((s) => s.startHour));
+      if (tripBlocks.length > 0) {
+        const earliestHour = Math.min(...tripBlocks.map((b) => Math.floor(b.startMin / 60)));
         const scrollTo = Math.max((earliestHour - 1) * HOUR_HEIGHT, 0);
         setTimeout(() => {
           scrollContainerRef.current?.scrollTo({ top: scrollTo, behavior: "smooth" });
@@ -169,7 +49,7 @@ export default function ScheduleTab() {
         }, 100);
       }
     }
-  }, [selectedDate, viewMode, calendarMode]);
+  }, [selectedDate, viewMode, calendarMode, tripBlocks]);
 
   return (
     <div className="flex flex-col h-full bg-[#f8f9fa] relative pb-[60px]">
@@ -197,7 +77,7 @@ export default function ScheduleTab() {
       </div>
 
       {viewMode === "list" ? (
-        /* List View Mode */
+        /* List View Mode — 전체 scheduleItems를 시간순으로 표시 */
         <div className="flex flex-col flex-1 min-h-[70vh]">
           <div className="flex justify-end items-center px-4 py-3 bg-white border-b border-gray-100">
             <div className="flex items-center cursor-pointer">
@@ -209,12 +89,55 @@ export default function ScheduleTab() {
               <span className="ml-2 text-sm text-gray-600">하차지연 오더 숨기기</span>
             </div>
           </div>
-          <div className="flex-1 flex flex-col justify-center items-center">
-            <div className="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-white text-2xl font-bold mb-4">
-              !
+
+          {scheduleItems.length === 0 ? (
+            <div className="flex-1 flex flex-col justify-center items-center">
+              <div className="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-white text-2xl font-bold mb-4">
+                !
+              </div>
+              <p className="text-xl font-bold text-gray-900">운송 내역이 없습니다.</p>
             </div>
-            <p className="text-xl font-bold text-gray-900">운송 내역이 없습니다.</p>
-          </div>
+          ) : (
+            <div className="flex-1 divide-y divide-gray-100 overflow-y-auto bg-white">
+              {scheduleItems.map((item) => {
+                const metaBadges = getMetaBadges(item);
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => setSelectedItem(item)}
+                    className="flex flex-col gap-1 px-4 py-3 cursor-pointer hover:bg-gray-50"
+                  >
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] font-bold text-gray-400">
+                        {item.date} {item.loadingStart ?? "미기재"}
+                      </span>
+                      {metaBadges.map((b) => (
+                        <span
+                          key={b}
+                          className="rounded bg-[#f4f7ff] px-1.5 py-0.5 text-[10px] font-bold text-[#3b5bdb]"
+                        >
+                          {b}
+                        </span>
+                      ))}
+                      <span
+                        className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                          STATUS_STYLE[item.status].badge
+                        }`}
+                      >
+                        {STATUS_LABEL[item.status]}
+                      </span>
+                    </div>
+                    <span className="text-[14px] font-bold text-gray-900 truncate">
+                      {getRouteLabel(item)}
+                    </span>
+                    <span className="text-[13px] font-bold text-gray-700">
+                      {getFareTotal(item).toLocaleString()}원
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       ) : calendarMode === "monthly" ? (
         /* 30일 모아보기 (월간 롤링 5주 캘린더) */
@@ -312,68 +235,124 @@ export default function ScheduleTab() {
                   </div>
                 ))}
 
-                {/* Render Schedules for the selected day */}
-                {currentDaySchedules.map((schedule) => {
-                  const topOffset = (schedule.startHour + schedule.startMin / 60) * HOUR_HEIGHT + 8;
-                  const height =
-                    (schedule.endHour +
-                      schedule.endMin / 60 -
-                      (schedule.startHour + schedule.startMin / 60)) *
-                    HOUR_HEIGHT;
+                {/* 겹치지 않는 하루 체인만 렌더링 — 트립 블록 / 휴식·공차 블록 */}
+                {dayBlocks.map((block) => {
+                  const topOffset = (block.startMin / 60) * HOUR_HEIGHT + 8;
+                  const height = Math.max(
+                    ((block.endMin - block.startMin) / 60) * HOUR_HEIGHT - 2,
+                    0
+                  );
 
-                  const isFixed = schedule.type === "fixed";
-                  const isExternal = schedule.type === "external";
-                  const bgColor = isFixed
-                    ? "bg-[#eff6ff]"
-                    : isExternal
-                    ? "bg-[#f8f9fa]"
-                    : "bg-[#eef2ff]";
-                  const borderColor = isFixed
-                    ? "border-[#3b5bdb]"
-                    : isExternal
-                    ? "border-gray-400"
-                    : "border-[#3b5bdb]";
-                  const titleColor = isFixed
-                    ? "text-[#1e40af]"
-                    : isExternal
-                    ? "text-gray-500"
-                    : "text-[#3b5bdb]";
+                  if (block.kind === "rest") {
+                    const gapMin = block.endMin - block.startMin;
+                    const gapLabel =
+                      gapMin >= 60
+                        ? `${Math.floor(gapMin / 60)}시간${gapMin % 60 > 0 ? ` ${gapMin % 60}분` : ""}`
+                        : `${gapMin}분`;
+                    return (
+                      <div
+                        key={`rest-${block.startMin}`}
+                        className="absolute left-3 right-4 flex flex-col items-center justify-center overflow-hidden rounded-r-md border-l-[4px] border-dashed border-gray-300 bg-[#fafafa] z-0"
+                        style={{ top: `${topOffset}px`, height: `${height}px` }}
+                      >
+                        {height >= 28 ? (
+                          <>
+                            <span className="text-[11px] font-bold text-gray-400">
+                              휴식 및 공차 이동
+                            </span>
+                            <span className="text-[10px] text-gray-300">{gapLabel}</span>
+                          </>
+                        ) : height >= 14 ? (
+                          <span className="text-[9px] font-bold text-gray-400">
+                            휴식 · {gapLabel}
+                          </span>
+                        ) : null}
+                      </div>
+                    );
+                  }
+
+                  const item = block.item;
+                  const isExternal = "source" in item.order && item.order.source === "external";
+                  const style = STATUS_STYLE[item.status];
+                  const bgColor = isExternal ? "bg-[#f8f9fa]" : "bg-[#eef2ff]";
+
+                  const metaBadges = getMetaBadges(item);
+                  const conditionBadges = getConditionBadges(item);
+                  const visibleConditions = conditionBadges.slice(0, 4);
+                  const extraCount = conditionBadges.length - visibleConditions.length;
+
+                  const showConditions = height >= 100;
+                  const showMeta = height >= 60;
 
                   return (
                     <div
-                      key={schedule.id}
-                      className={`absolute left-3 right-4 ${bgColor} border-l-[4px] ${borderColor} rounded-r-md p-3 shadow-sm flex flex-col cursor-pointer transition-colors hover:shadow-md z-10`}
-                      style={{ top: `${topOffset}px`, height: `${height - 2}px` }}
+                      key={item.id}
+                      onClick={() => setSelectedItem(item)}
+                      className={`absolute left-3 right-4 ${bgColor} ${style.borderWidth} ${style.border} rounded-r-md p-2.5 shadow-sm flex flex-col overflow-hidden cursor-pointer transition-colors hover:shadow-md z-10 ${style.ring}`}
+                      style={{ top: `${topOffset}px`, height: `${height}px` }}
                     >
-                      <div className="flex justify-between items-center mb-1">
-                        <span className={`text-[10px] font-bold ${titleColor}`}>
-                          {schedule.startHour.toString().padStart(2, "0")}:
-                          {schedule.startMin.toString().padStart(2, "0")} -{" "}
-                          {schedule.endHour.toString().padStart(2, "0")}:
-                          {schedule.endMin.toString().padStart(2, "0")}
-                        </span>
-                        {schedule.fare && (
-                          <span className="text-[11px] font-extrabold text-gray-700">
-                            {schedule.fare.toLocaleString()}원
-                          </span>
+                      {/* 우측 상단 상태 배지 */}
+                      <span
+                        className={`absolute top-1.5 right-1.5 flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold ${style.badge}`}
+                      >
+                        {style.pulseDot && (
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full animate-pulse ${style.pulseDot}`}
+                          />
                         )}
-                      </div>
-                      <span className="text-[13px] font-bold text-gray-900 leading-tight truncate">
-                        {schedule.title}
+                        {STATUS_LABEL[item.status]}
                       </span>
-                      <span className="text-[12px] text-gray-600 mt-1 truncate">
-                        {schedule.desc1}
+
+                      <span className={`text-[10px] font-bold ${style.title} mb-1 pr-12`}>
+                        {item.loadingStart} - {item.unloadingStart}
                       </span>
-                      {schedule.desc2 && (
-                        <span className="text-[11px] text-gray-500 mt-auto truncate">
-                          {schedule.desc2}
-                        </span>
+
+                      {/* 1순위: 상단 메타 배지 */}
+                      {showMeta && (
+                        <div className="mb-1 flex flex-wrap gap-1">
+                          {metaBadges.map((b) => (
+                            <span
+                              key={b}
+                              className={`rounded px-1.5 py-0.5 text-[9px] font-bold ${
+                                isExternal
+                                  ? "bg-gray-200 text-gray-500"
+                                  : "bg-[#e4eaff] text-[#3b5bdb]"
+                              }`}
+                            >
+                              {b}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* 2순위: 운행 경로 */}
+                      <span className="text-[14px] font-extrabold text-gray-900 leading-tight truncate">
+                        {getRouteLabel(item)}
+                      </span>
+
+                      {/* 3순위: 작업 조건 스티커 */}
+                      {showConditions && (
+                        <div className="mt-1.5 flex flex-wrap gap-1">
+                          {visibleConditions.map((b, idx) => (
+                            <span
+                              key={`${b}-${idx}`}
+                              className="rounded bg-white/70 px-1.5 py-0.5 text-[9px] font-bold text-gray-600 border border-gray-200"
+                            >
+                              {b}
+                            </span>
+                          ))}
+                          {extraCount > 0 && (
+                            <span className="rounded bg-white/70 px-1.5 py-0.5 text-[9px] font-bold text-gray-400 border border-gray-200">
+                              +{extraCount}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
                   );
                 })}
 
-                {currentDaySchedules.length === 0 && (
+                {tripBlocks.length === 0 && (
                   <div className="absolute inset-0 flex justify-center items-center pointer-events-none mt-20">
                     <span className="text-gray-300 font-bold text-sm bg-white px-4 py-2 rounded-full border border-gray-100 shadow-sm">
                       예정된 스케줄이 없습니다
@@ -404,6 +383,11 @@ export default function ScheduleTab() {
 
       {/* 운행 리포트 모달 */}
       {showReportModal && <AiReportModal onClose={() => setShowReportModal(false)} />}
+
+      {/* 스케줄 카드 상세 시트 */}
+      {selectedItem && (
+        <ScheduleDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} />
+      )}
     </div>
   );
 }
