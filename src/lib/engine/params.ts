@@ -47,10 +47,16 @@ export const DEFAULT_STAY_MINUTES = {
 /** 계층별 최소 표본. 못 채우면 다음 층으로 내려간다. */
 export const MIN_SAMPLES = {
   L1: 2,
-  "L1.5": 3,
+  "L1.5": 2,
   L2: 3,
   L3: 5,
 } as const;
+
+/**
+ * 거리대 구간 상한(km). L3 폴백에서 "비슷한 거리"를 가르는 기준.
+ * validate-mock.ts의 운임 밴드와 같은 절단점을 쓴다 — 데이터셋이 이미 이 구간으로 운임을 검증한다.
+ */
+export const DISTANCE_BANDS = [40, 80, 130, 200, 300, Infinity] as const;
 
 /**
  * 화물자동차 운수사업법 시행규칙 제21조 (2020-10-08 시행).

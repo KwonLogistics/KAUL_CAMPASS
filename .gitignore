@@ -45,3 +45,6 @@ kakao_log/
 ../kakao_log/
 # local dev log (팀원 각자 로컬에서만 관리)
 /dev-log
+
+# 로컬 실행 설정 (머신별 절대경로 포함)
+/.claude
