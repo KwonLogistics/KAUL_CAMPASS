@@ -42,11 +42,14 @@ export default function ScheduleTab() {
   // selectedDate(일자 숫자) → "YYYY-MM-DD". 기존 요일 선택 UI는 8월 고정
   const selectedDateISO = `2026-08-${selectedDate.toString().padStart(2, "0")}`;
 
-  const currentDaySchedules = allItems.filter((item) => item.date === selectedDateISO);
+  const currentDaySchedules = useMemo(
+    () => allItems.filter((item) => item.date === selectedDateISO),
+    [allItems, selectedDateISO]
+  );
 
-  // 겹치는 후보 오더 중 겹치지 않는 하루 체인만 뽑고, 그 사이 공백에 휴식/공차 블록을 끼워 넣는다
-  const dayBlocks = buildDayTimeline(currentDaySchedules);
-  const tripBlocks = dayBlocks.filter((b) => b.kind === "trip");
+  // 겹치는 일정 오더 등 겹치지 않는 하루 체인을 뽑고, 그 사이 공백에 휴식/공차 블록을 채워 넣는다.
+  const dayBlocks = useMemo(() => buildDayTimeline(currentDaySchedules), [currentDaySchedules]);
+  const tripBlocks = useMemo(() => dayBlocks.filter((b) => b.kind === "trip"), [dayBlocks]);
 
   // 가장 이른 스케줄 기준으로 자동 스크롤
   useEffect(() => {
@@ -66,7 +69,7 @@ export default function ScheduleTab() {
   }, [selectedDate, viewMode, calendarMode, tripBlocks]);
 
   return (
-    <div className="flex flex-col h-full bg-[#f8f9fa] relative pb-[60px]">
+    <div className="flex flex-col h-full bg-[#f8f9fa] relative">
       {/* Header Bar */}
       <div className="bg-white px-4 py-3 flex justify-between items-center border-b border-gray-100 sticky top-0 z-20">
         <h1 className="text-lg font-bold text-gray-900">내 운송 (스케줄)</h1>
