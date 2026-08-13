@@ -128,3 +128,40 @@ export function sidoOf(label: string): string | null {
   const g = REGION_GROUPS.find((x) => label.startsWith(`${x.sido} `));
   return g ? g.sido : null;
 }
+
+/**
+ * 이 화면의 시도 묶음("경기 남"·"경기 북"·"전남광주")은 카카오T 앱 화면을 따른 것이라
+ * mock-data.ts 의 실제 행정 시/도("경기"·"전남"·"광주")와 문자열이 다르다.
+ * "선호 출발지가 경기 남 화성시" 와 "오더 상차지가 경기" 를 같은 방향으로 보려면
+ * 이 매핑이 있어야 한다 — 없으면 두 값이 절대 같아지지 않아 방향 매칭이 항상 실패한다.
+ */
+const GROUP_TO_ADMIN_SIDO: Record<string, string[]> = {
+  "서울": ["서울"],
+  "경기 북": ["경기"],
+  "경기 남": ["경기"],
+  "인천": ["인천"],
+  "강원": ["강원"],
+  "충북": ["충북"],
+  "충남": ["충남"],
+  "대전": ["대전"],
+  "세종": ["세종"],
+  "전북": ["전북"],
+  "전남광주": ["전남", "광주"],
+  "경북": ["경북"],
+  "대구": ["대구"],
+  "경남": ["경남"],
+  "부산": ["부산"],
+  "울산": ["울산"],
+  "제주": ["제주"],
+};
+
+/**
+ * 지역 설정 라벨("경기 남 화성시")이 오더의 실제 시/도("경기")와 같은 방향인지.
+ * 시/군/구 단위가 아니라 시/도 단위로만 본다 — "추천순" 정렬에 쓰는 방향 힌트라
+ * 이 정도 정밀도로 충분하고, 화면에도 "같은 시/도"라고만 설명해서 정밀도를 부풀리지 않는다.
+ */
+export function labelMatchesSido(label: string, adminSido: string): boolean {
+  const group = sidoOf(label);
+  if (!group) return false;
+  return (GROUP_TO_ADMIN_SIDO[group] ?? []).includes(adminSido);
+}

@@ -1,14 +1,90 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
+import ExternalOrderSheet from './order-import/ExternalOrderSheet';
+import { useAppState } from '@/lib/store/AppStateProvider';
+import type { ScheduledOrder } from '@/lib/store/schedule-store';
+import { TODAY_ISO } from '@/data/mock-data';
+
+/** 타임라인 블록 하나. 카카오 목업이든 외부 등록이든 같은 모양으로 만들어 같이 그린다. */
+interface Block {
+  id: string;
+  /** "YYYY-MM-DD". 일(day) 숫자로 들고 있으면 8/18 오더가 8월 셋째 주에서 사라진다. */
+  dateISO: string;
+  startHour: number;
+  startMin: number;
+  endHour: number;
+  endMin: number;
+  title: string;
+  desc1: string;
+  desc2: string;
+  type: 'kakao' | 'external';
+}
+
+function hhmm(t: string): [number, number] {
+  const [h, m] = t.split(':').map(Number);
+  return [Number.isFinite(h) ? h : 9, Number.isFinite(m) ? m : 0];
+}
+
+/**
+ * 등록된 오더 → 타임라인 블록.
+ * 하차가 다음 날이면 그날 23:59 로 잘라 그린다 — 블록이 캘린더 밖으로 흘러나가지 않게.
+ */
+function toBlock(s: ScheduledOrder): Block {
+  const { order } = s;
+  const [startHour, startMin] = hhmm(order.pickup.time);
+  const sameDay = order.dropoff.dateISO === order.pickup.dateISO;
+  const [rawEndH, rawEndM] = hhmm(order.dropoff.time);
+  const [endHour, endMin] = sameDay ? [rawEndH, rawEndM] : [23, 59];
+
+  const place = (w: { sigungu: string; dong: string; sido: string }) =>
+    [w.sido, w.sigungu || w.dong].filter(Boolean).join(' ') || '미상';
+
+  return {
+    id: order.id,
+    dateISO: s.dateISO,
+    startHour,
+    startMin,
+    // 최소 1시간은 차지하게 — 30분짜리 블록은 글자가 안 들어간다
+    endHour: endHour * 60 + endMin - (startHour * 60 + startMin) < 60 ? startHour + 1 : endHour,
+    endMin: endHour * 60 + endMin - (startHour * 60 + startMin) < 60 ? startMin : endMin,
+    title: `${place(order.pickup)} ➔ ${place(order.dropoff)}`,
+    desc1: `${order.vehicle.ton}톤 ${order.vehicle.body} / ${order.loadOption} · ${order.fare.total.toLocaleString()}원`,
+    desc2: order.conditions.map((c) => c.value).join(', '),
+    type: 'external',
+  };
+}
+
+/** 그 날짜가 속한 주의 월요일. 주간 보기는 항상 월요일에서 시작한다. */
+function mondayOf(dateISO: string): string {
+  const d = new Date(`${dateISO}T00:00:00`);
+  const offset = (d.getDay() + 6) % 7; // 일=0 → 6, 월=1 → 0
+  d.setDate(d.getDate() - offset);
+  return toISO(d);
+}
+
+function toISO(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function shiftDays(dateISO: string, days: number): string {
+  const d = new Date(`${dateISO}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return toISO(d);
+}
 
 export default function ScheduleTab() {
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('calendar');
   const [calendarMode, setCalendarMode] = useState<'weekly' | 'monthly'>('weekly');
-  
-  const [selectedDate, setSelectedDate] = useState<number>(13);
+  const [showExternal, setShowExternal] = useState(false);
+
+  const { scheduled, hydrated, removeScheduled } = useAppState();
+
+  const [selectedDate, setSelectedDate] = useState<string>(TODAY_ISO);
   const weekDays = ['월', '화', '수', '목', '금', '토', '일'];
-  const weekDates = [10, 11, 12, 13, 14, 15, 16]; 
+  const weekStart = mondayOf(selectedDate);
+  const weekDates = Array.from({ length: 7 }, (_, i) => shiftDays(weekStart, i));
 
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -16,14 +92,23 @@ export default function ScheduleTab() {
   // 1시간당 높이를 80px로 설정하여 일정이 많아도 편안하게 보이도록 조절
   const HOUR_HEIGHT = 80;
 
-  // 임시 스케줄 데이터
-  const schedules = [
-    { id: 1, date: 13, startHour: 9, startMin: 0, endHour: 11, endMin: 30, title: '서울 양천구 ➔ 서울 송파구', desc1: '다마스 / 독차', desc2: '스티로폼박스 1개, 햇반 4박스...', type: 'kakao' },
-    { id: 2, date: 13, startHour: 14, startMin: 0, endHour: 16, endMin: 0, title: '경기 김포시 ➔ 서울 서초구 (외부오더)', desc1: '다마스 / 독차', desc2: '', type: 'external' },
-    { id: 3, date: 14, startHour: 7, startMin: 30, endHour: 9, endMin: 0, title: '인천 부평구 ➔ 서울 마포구', desc1: '1톤 / 혼적', desc2: '박스 10개', type: 'kakao' },
+  // 임시 스케줄 데이터 (카카오 콜)
+  const schedules: Block[] = [
+    { id: 'k1', dateISO: '2026-08-13', startHour: 9, startMin: 0, endHour: 11, endMin: 30, title: '서울 양천구 ➔ 서울 송파구', desc1: '다마스 / 독차', desc2: '스티로폼박스 1개, 햇반 4박스...', type: 'kakao' },
+    { id: 'k3', dateISO: '2026-08-14', startHour: 7, startMin: 30, endHour: 9, endMin: 0, title: '인천 부평구 ➔ 서울 마포구', desc1: '1톤 / 혼적', desc2: '박스 10개', type: 'kakao' },
   ];
 
-  const currentDaySchedules = schedules.filter(s => s.date === selectedDate);
+  // 외부 등록 오더는 여기서 합류한다. hydrated 전에는 빈 배열 —
+  // localStorage 를 서버 렌더에서 읽을 수 없어 마크업이 갈리기 때문이다.
+  const externalBlocks = hydrated ? scheduled.map(toBlock) : [];
+  const allBlocks = [...schedules, ...externalBlocks];
+
+  const currentDaySchedules = allBlocks
+    .filter((s) => s.dateISO === selectedDate)
+    .sort((a, b) => a.startHour * 60 + a.startMin - (b.startHour * 60 + b.startMin));
+
+  /** 주간 날짜 칸에 찍는 점 — 그날 일정이 있는지 */
+  const datesWithBlocks = new Set(allBlocks.map((b) => b.dateISO));
 
   // 가장 이른 스케줄 기준으로 자동 스크롤
   useEffect(() => {
@@ -45,7 +130,8 @@ export default function ScheduleTab() {
         }, 100);
       }
     }
-  }, [selectedDate, viewMode]);
+    // scheduled.length — 외부 오더를 새로 등록하면 그 자리로 스크롤이 따라가야 한다
+  }, [selectedDate, viewMode, scheduled.length]);
 
   return (
     <div className="flex flex-col h-full bg-[#f8f9fa] relative pb-[60px]">
@@ -77,10 +163,41 @@ export default function ScheduleTab() {
               <span className="ml-2 text-sm text-gray-600">하차지연 오더 숨기기</span>
             </div>
           </div>
-          <div className="flex-1 flex flex-col justify-center items-center">
-            <div className="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-white text-2xl font-bold mb-4">!</div>
-            <p className="text-xl font-bold text-gray-900">운송 내역이 없습니다.</p>
-          </div>
+          {hydrated && scheduled.length > 0 ? (
+            <div className="flex flex-col gap-2 p-4">
+              {scheduled.map((s) => {
+                const b = toBlock(s);
+                return (
+                  <Link
+                    key={s.order.id}
+                    href={`/cargo/${s.order.id}`}
+                    className="block rounded-lg border border-gray-200 bg-white p-3"
+                  >
+                    <div className="mb-1 flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-[#b07600]">
+                        <span className="mr-1 rounded bg-[#f59f00] px-1 py-0.5 text-[9px] text-white">외부</span>
+                        {s.dateISO} {s.order.pickup.time} → {s.order.dropoff.time}
+                      </span>
+                      <button
+                        onClick={(e) => { e.preventDefault(); removeScheduled(s.order.id); }}
+                        className="text-[12px] font-bold text-gray-400 hover:text-red-500"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                    <p className="text-[14px] font-bold text-gray-900">{b.title}</p>
+                    <p className="mt-0.5 text-[12px] text-gray-600">{b.desc1}</p>
+                    {b.desc2 && <p className="mt-1 text-[11px] text-gray-400">{b.desc2}</p>}
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col justify-center items-center">
+              <div className="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-white text-2xl font-bold mb-4">!</div>
+              <p className="text-xl font-bold text-gray-900">운송 내역이 없습니다.</p>
+            </div>
+          )}
         </div>
       ) : (
         /* Calendar View Mode */
@@ -88,8 +205,26 @@ export default function ScheduleTab() {
           {/* Calendar Header */}
           <div className="bg-white px-4 py-3 border-b border-gray-100 z-10 shadow-sm">
             <div className="flex justify-between items-center mb-3">
-              <span className="font-bold text-gray-900 text-[16px]">2026년 8월</span>
-              <button 
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setSelectedDate(shiftDays(selectedDate, -7))}
+                  aria-label="이전 주"
+                  className="px-1.5 text-[16px] leading-none text-gray-400 hover:text-gray-700"
+                >
+                  ‹
+                </button>
+                <span className="font-bold text-gray-900 text-[16px]">
+                  {weekStart.slice(0, 4)}년 {Number(weekStart.slice(5, 7))}월
+                </span>
+                <button
+                  onClick={() => setSelectedDate(shiftDays(selectedDate, 7))}
+                  aria-label="다음 주"
+                  className="px-1.5 text-[16px] leading-none text-gray-400 hover:text-gray-700"
+                >
+                  ›
+                </button>
+              </div>
+              <button
                 className="text-[11px] font-bold text-[#3b5bdb] bg-[#f4f7ff] px-2.5 py-1.5 rounded border border-[#d6e2ff]"
                 onClick={() => setCalendarMode(calendarMode === 'weekly' ? 'monthly' : 'weekly')}
               >
@@ -108,9 +243,10 @@ export default function ScheduleTab() {
                     className="flex flex-col items-center cursor-pointer"
                   >
                     <span className={`text-[12px] mb-1.5 font-bold ${isSelected ? 'text-[#3b5bdb]' : 'text-gray-400'}`}>{day}</span>
-                    <div className={`w-8 h-8 flex items-center justify-center rounded-full text-[14px] font-bold ${isSelected ? 'bg-[#3b5bdb] text-white shadow-md' : 'text-gray-700 hover:bg-gray-100'}`}>
-                      {date}
+                    <div className={`w-8 h-8 flex items-center justify-center rounded-full text-[14px] font-bold ${isSelected ? 'bg-[#3b5bdb] text-white shadow-md' : date === TODAY_ISO ? 'text-[#3b5bdb] ring-1 ring-[#d6e2ff]' : 'text-gray-700 hover:bg-gray-100'}`}>
+                      {Number(date.slice(8, 10))}
                     </div>
+                    <div className={`mt-1 h-1 w-1 rounded-full ${datesWithBlocks.has(date) ? (isSelected ? 'bg-[#3b5bdb]' : 'bg-gray-300') : 'bg-transparent'}`} />
                   </div>
                 );
               })}
@@ -148,22 +284,45 @@ export default function ScheduleTab() {
                   const height = ((schedule.endHour + schedule.endMin / 60) - (schedule.startHour + schedule.startMin / 60)) * HOUR_HEIGHT;
                   
                   const isExternal = schedule.type === 'external';
-                  const bgColor = isExternal ? 'bg-[#f8f9fa]' : 'bg-[#eef2ff]';
-                  const borderColor = isExternal ? 'border-gray-400' : 'border-[#3b5bdb]';
-                  const titleColor = isExternal ? 'text-gray-500' : 'text-[#3b5bdb]';
+                  const bgColor = isExternal ? 'bg-[#fff8e6]' : 'bg-[#eef2ff]';
+                  const borderColor = isExternal ? 'border-[#f59f00]' : 'border-[#3b5bdb]';
+                  const titleColor = isExternal ? 'text-[#b07600]' : 'text-[#3b5bdb]';
 
-                  return (
-                    <div 
-                      key={schedule.id}
-                      className={`absolute left-3 right-4 ${bgColor} border-l-[4px] ${borderColor} rounded-r-md p-3 shadow-sm flex flex-col cursor-pointer transition-colors hover:shadow-md z-10`}
-                      style={{ top: `${topOffset}px`, height: `${height - 2}px` }}
-                    >
-                      <span className={`text-[10px] font-bold ${titleColor} mb-1`}>
-                        {schedule.startHour.toString().padStart(2, '0')}:{schedule.startMin.toString().padStart(2, '0')} - {schedule.endHour.toString().padStart(2, '0')}:{schedule.endMin.toString().padStart(2, '0')}
-                      </span>
+                  const blockClass = `absolute left-3 right-4 ${bgColor} border-l-[4px] ${borderColor} rounded-r-md p-3 shadow-sm flex flex-col cursor-pointer transition-colors hover:shadow-md z-10 overflow-hidden`;
+                  const blockStyle = { top: `${topOffset}px`, height: `${height - 2}px` };
+
+                  const content = (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-[10px] font-bold ${titleColor} mb-1`}>
+                          {isExternal && <span className="mr-1 rounded bg-[#f59f00] px-1 py-0.5 text-[9px] text-white">외부</span>}
+                          {schedule.startHour.toString().padStart(2, '0')}:{schedule.startMin.toString().padStart(2, '0')} - {schedule.endHour.toString().padStart(2, '0')}:{schedule.endMin.toString().padStart(2, '0')}
+                        </span>
+                        {isExternal && (
+                          <button
+                            onClick={(e) => { e.preventDefault(); removeScheduled(schedule.id); }}
+                            aria-label="등록 취소"
+                            className="px-1 text-[14px] leading-none font-bold text-gray-400 hover:text-red-500"
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
                       <span className="text-[14px] font-bold text-gray-900 leading-tight truncate">{schedule.title}</span>
                       <span className="text-[12px] text-gray-600 mt-1 truncate">{schedule.desc1}</span>
                       {schedule.desc2 && <span className="text-[11px] text-gray-400 mt-auto truncate">{schedule.desc2}</span>}
+                    </>
+                  );
+
+                  // 카카오 목업 두 건(k1/k3)은 진짜 spotOrders 아이디가 아니라 화면용 가짜 id다 —
+                  // 외부 등록 건만 상세 화면(/cargo/[id])이 실제로 그 id 를 찾을 수 있다.
+                  return isExternal ? (
+                    <Link key={schedule.id} href={`/cargo/${schedule.id}`} className={blockClass} style={blockStyle}>
+                      {content}
+                    </Link>
+                  ) : (
+                    <div key={schedule.id} className={blockClass} style={blockStyle}>
+                      {content}
                     </div>
                   );
                 })}
@@ -190,10 +349,23 @@ export default function ScheduleTab() {
         </button>
 
         {/* 외부 스케줄 추가 버튼 (오른쪽 하단 고정) */}
-        <button className="pointer-events-auto bg-[#3b5bdb] text-white shadow-lg rounded-full py-3.5 px-5 font-bold text-[14px] flex items-center justify-center transition-transform hover:scale-105 border border-[#3b5bdb]">
+        <button 
+          onClick={() => setShowExternal(true)}
+          className="pointer-events-auto bg-[#3b5bdb] text-white shadow-lg rounded-full py-3.5 px-5 font-bold text-[14px] flex items-center justify-center transition-transform hover:scale-105 border border-[#3b5bdb]"
+        >
           + 외부 스케줄 추가
         </button>
       </div>
+
+      {showExternal && (
+        <ExternalOrderSheet
+          onClose={() => setShowExternal(false)}
+          onRegistered={(dateISO) => {
+            setViewMode('calendar');
+            setSelectedDate(dateISO); // 8/18 오더면 캘린더가 그 주로 넘어간다
+          }}
+        />
+      )}
     </div>
   );
 }

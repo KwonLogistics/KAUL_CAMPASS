@@ -11,7 +11,13 @@
  * → {"type":"string","nullable":true} 로 쓴다.
  */
 
-const MODEL = process.env.GEMINI_MODEL ?? "gemini-3.6-flash";
+/**
+ * 기본 모델 = flash-lite. 해커톤에서 필요한 건 최고 품질이 아니라
+ * "심사 중에 429 안 뜨고 즉시 응답"이다 — 무료 티어 기준 RPM·RPD가 가장 넉넉하고
+ * 지연이 가장 짧은 계열이다. 멀티모달(이미지)·responseSchema 모두 지원한다.
+ * 사진 OCR 정확도가 아쉬우면 .env.local 에서 GEMINI_MODEL=gemini-3.6-flash 로만 바꾼다.
+ */
+const MODEL = process.env.GEMINI_MODEL ?? "gemini-3.5-flash-lite";
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 
 export interface GeminiPart {
@@ -36,9 +42,11 @@ export async function callGemini<T>(opts: CallOptions): Promise<T> {
     throw new GeminiUnavailable("GEMINI_API_KEY 없음");
   }
 
-  const res = await fetch(`${ENDPOINT}/${MODEL}:generateContent?key=${key}`, {
+  // 키는 쿼리스트링(?key=)이 아니라 헤더로 보낸다 — URL 은 프록시·액세스 로그·에러 메시지에
+  // 그대로 남는다. 같은 엔드포인트, 인증 방식만 다르다.
+  const res = await fetch(`${ENDPOINT}/${MODEL}:generateContent`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: opts.system }] },
       contents: [{ role: "user", parts: opts.parts }],
@@ -57,7 +65,17 @@ export async function callGemini<T>(opts: CallOptions): Promise<T> {
   }
 
   const data = await res.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  // parts[0] 을 그냥 집지 않는다 — 3.x 계열은 사고 과정(thought) 파트를 앞에 끼워 넣을 수 있다.
+  // 실제 응답은 thought 가 아닌 첫 text 파트다.
+  const parts: Array<{ text?: string; thought?: boolean }> =
+    data?.candidates?.[0]?.content?.parts ?? [];
+  const text = parts.find((p) => !p.thought && typeof p.text === "string")?.text;
   if (!text) throw new GeminiUnavailable("빈 응답");
-  return JSON.parse(text) as T;
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    // responseSchema 를 걸었는데도 JSON 이 아니면 모델이 잘린 것이다(대개 토큰 상한).
+    throw new GeminiUnavailable("JSON 파싱 실패");
+  }
 }

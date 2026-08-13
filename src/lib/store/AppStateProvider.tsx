@@ -27,6 +27,7 @@ import {
   SCHEDULE_STORAGE_KEY,
   addOrder,
   removeOrder,
+  updateOrder,
   type ScheduledOrder,
 } from "./schedule-store";
 
@@ -42,6 +43,8 @@ interface AppState {
   scheduled: ScheduledOrder[];
   /** 순범 — 외부 오더 등록 */
   addScheduled: (item: ScheduledOrder) => void;
+  /** 정산, 오더 수정 등 */
+  updateScheduled: (id: string, patch: Partial<ScheduledOrder>) => void;
   removeScheduled: (orderId: string) => void;
 
   /** localStorage 복원 전에는 false. 서버/클라 렌더 불일치를 막는다. */
@@ -114,6 +117,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         setSettings((prev) => applyRoute(prev, route)),
       scheduled,
       addScheduled: (item) => setScheduled((prev) => addOrder(prev, item)),
+      updateScheduled: (id, patch) => setScheduled((prev) => updateOrder(prev, id, patch)),
       removeScheduled: (id) => setScheduled((prev) => removeOrder(prev, id)),
       hydrated,
     }),

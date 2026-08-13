@@ -39,7 +39,12 @@
 // ============================================================
 
 export type DateBucket = "D+0" | "D+1" | "D+2+";
-export type BodyType = "카고" | "윙바디";
+/**
+ * 카카오 콜 목업(spotOrders)은 카고·윙바디만 쓴다(R4 검증 대상, 한국교통연구원 조사 근거 —
+ * 파일 상단 주석 참고). 외부 등록 오더는 화주가 다마스·탑차 등 무엇이든 적을 수 있어
+ * `(string & {})` 로 열어 둔다 — 리터럴 자동완성은 유지하면서 임의 문자열도 받는다.
+ */
+export type BodyType = "카고" | "윙바디" | "다마스" | "탑차" | "냉동탑차" | (string & {});
 export type LoadOption = "독차" | "혼적";
 export type SettleType = "인수증" | "선착불" | "후불";
 export type OrderSource = "kakao" | "external";
@@ -67,6 +72,11 @@ export interface Waypoint {
   sido: string;
   sigungu: string;
   dong: string;
+  /**
+   * 번지·건물명 등 dong 아래 세부 주소. 선택 필드 — 카카오 콜 목업 24건은 안 채운다
+   * (3단 행정구역까지만 준다). 외부 등록 오더만 이 필드를 쓴다.
+   */
+  addressDetail?: string;
   /** 조회일 기준 상대 버킷 */
   date: DateBucket;
   /** 절대 날짜 (YYYY-MM-DD) */

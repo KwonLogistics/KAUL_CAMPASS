@@ -18,16 +18,21 @@ import {
   dayTagOf,
   CALENDAR_2026_08,
 } from "@/data/mock-data";
-import type { SpotOrder } from "@/lib/types";
+import type { DaySettings, SpotOrder } from "@/lib/types";
 import { computeEconomics } from "@/lib/engine/economics";
 import { estimateWait } from "@/lib/engine/wait-time";
+import { labelMatchesSido } from "@/data/regions";
+import { useAppState } from "@/lib/store/AppStateProvider";
+import { DEFAULT_SETTINGS } from "@/lib/store/settings-store";
 import CallMetrics from "@/components/common/CallMetrics";
+import InfoDot from "@/components/common/InfoDot";
 
 type SortKey =
   | "latest"
   | "near"
   | "haul"
   | "fare"
+  | "recommend"
   | "wage"
   | "wait";
 
@@ -36,17 +41,49 @@ const SORT_LABEL: Record<SortKey, string> = {
   near: "가까운 순",
   haul: "운송거리 짧은 순",
   fare: "금액 높은 순",
+  recommend: "추천순",
   wage: "실질 시급 높은 순",
   wait: "대기 시간 짧은 순",
 };
 
 /** 우리가 더한 축에만 근거를 쓴다. 앱에 원래 있던 정렬은 설명이 필요 없다. */
 const SORT_NOTE: Partial<Record<SortKey, string>> = {
+  recommend:
+    "지금 시각과 위치, 「나의 하루 동선」(선호 출발지·복귀점)을 함께 고려해 배차 확률이 높은 오더를 위로 올립니다. " +
+    "하루를 시작할 시간대엔 출발지 방향을, 마무리할 시간대엔 복귀점 방향을 우대합니다. 점수가 같으면 실질 시급이 높은 순입니다. " +
+    "출발지·복귀점을 설정하지 않으면 실질 시급 순으로 대신 보여드립니다. 지금은 시연을 위해 단순화한 규칙이고, " +
+    "실제 위치·경로 데이터를 반영하는 정교한 자동배차 추천은 추후 제공됩니다.",
   wage: "순이익 ÷ 실질시간이 높은 순입니다. 실질시간에는 운임이 지급되지 않는 대기·상하차가 들어갑니다.",
   wait: "업무 외 대기시간이 짧은 순입니다. 기사님의 과거 운행 기록에서 뽑은 중앙값이고, 기록이 없으면 없다고 씁니다.",
 };
 
-const OUR_AXES: SortKey[] = ["wage", "wait"];
+const OUR_AXES: SortKey[] = ["recommend", "wage", "wait"];
+
+/**
+ * 추천순 점수 — "시간과 위치를 고려한 배차 추천"의 시연용 축소판이다.
+ * 진짜 AI 자동배차(실시간 위치·경로 최적화)는 나중 과제로 남겨두고, 지금은 그 방향성만
+ * 보여주는 규칙 기반 근사치를 쓴다: 시/도 단위로만 보고, "지금 시각"은 하루를 오전/오후
+ * 두 구간으로만 가른다(경계 hour는 아래 한 곳에서만 정의 — 화면 문구에는 "오전"/"오후" 대신
+ * "하루를 시작할 시간대"/"마무리할 시간대"로만 쓴다. 실제 배차 로직이 아니라 시연 근사치라는
+ * 사실을 숫자로 못박지 않기 위해서다).
+ * 오전 구간엔 출발지 방향(그 방향으로 이미 나가는 길), 오후 구간엔 복귀점 방향(집 방향으로
+ * 공차 없이 마무리)을 우대한다. 선호 상하차지는 보조 신호로 소량만 더한다.
+ * 점수가 같으면 호출부에서 실질 시급으로 다시 가른다.
+ */
+function recommendScore(order: SpotOrder, settings: DaySettings, hour: number): number {
+  let score = 0;
+  // 오전/오후 경계. 시연용 근사치라 화면 문구에는 이 시각을 그대로 노출하지 않는다.
+  const towardEnd = hour >= 14;
+  if (settings.dayStart && !towardEnd && labelMatchesSido(settings.dayStart, order.pickup.sido)) {
+    score += 2;
+  }
+  if (settings.dayEnd && towardEnd && labelMatchesSido(settings.dayEnd, order.dropoff.sido)) {
+    score += 2;
+  }
+  if (settings.preferPickup.some((p) => labelMatchesSido(p, order.pickup.sido))) score += 1;
+  if (settings.preferDropoff.some((p) => labelMatchesSido(p, order.dropoff.sido))) score += 1;
+  return score;
+}
 
 /**
  * 화물 정보 탭은 카카오 오더 풀이다. 외부 앱 오더는 여기 뜨지 않는다.
@@ -55,7 +92,12 @@ const OUR_AXES: SortKey[] = ["wage", "wait"];
  */
 const kakaoOrders = spotOrders.filter((o) => o.source === "kakao");
 
-function sortOrders(list: SpotOrder[], key: SortKey): SpotOrder[] {
+function sortOrders(
+  list: SpotOrder[],
+  key: SortKey,
+  settings: DaySettings,
+  hour: number,
+): SpotOrder[] {
   const arr = [...list];
   switch (key) {
     case "latest":
@@ -66,6 +108,13 @@ function sortOrders(list: SpotOrder[], key: SortKey): SpotOrder[] {
       return arr.sort((a, b) => a.distance.haulKm - b.distance.haulKm);
     case "fare":
       return arr.sort((a, b) => b.fare.total - a.fare.total);
+    case "recommend":
+      return arr.sort((a, b) => {
+        const sb = recommendScore(b, settings, hour);
+        const sa = recommendScore(a, settings, hour);
+        if (sb !== sa) return sb - sa;
+        return computeEconomics(b).hourlyWage - computeEconomics(a).hourlyWage;
+      });
     case "wage":
       return arr.sort(
         (a, b) => computeEconomics(b).hourlyWage - computeEconomics(a).hourlyWage,
@@ -98,8 +147,18 @@ function badgesOf(order: SpotOrder): string[] {
 export default function CargoInfo() {
   const [sortOpen, setSortOpen] = useState(false);
   const [sort, setSort] = useState<SortKey>("latest");
+  const [recommendHintOpen, setRecommendHintOpen] = useState(false);
+  const { settings, hydrated } = useAppState();
 
-  const orders = useMemo(() => sortOrders(kakaoOrders, sort), [sort]);
+  // localStorage 복원 전에는 항상 빈 설정으로 본다 — 서버 렌더와 클라 첫 렌더의
+  // 정렬 결과가 갈리면 목록 순서가 하이드레이션 중에 눈에 띄게 뒤바뀐다.
+  const effectiveSettings = hydrated ? settings : DEFAULT_SETTINGS;
+  const hour = new Date().getHours();
+
+  const orders = useMemo(
+    () => sortOrders(kakaoOrders, sort, effectiveSettings, hour),
+    [sort, effectiveSettings, hour],
+  );
   const note = SORT_NOTE[sort];
 
   return (
@@ -126,7 +185,7 @@ export default function CargoInfo() {
             <div className="absolute top-8 left-0 bg-white border border-gray-200 shadow-xl rounded-md w-52 py-2 z-30">
               {(Object.keys(SORT_LABEL) as SortKey[]).map((key, idx) => (
                 <div key={key}>
-                  {/* 앱에 원래 있던 4개와 우리가 더한 2개 사이에 선을 긋는다 */}
+                  {/* 앱에 원래 있던 4개와 우리가 더한 축 사이에 선을 긋는다 */}
                   {idx === 4 && <div className="my-1.5 border-t border-gray-100" />}
                   <div
                     onClick={(e) => {
@@ -145,9 +204,27 @@ export default function CargoInfo() {
                           NEW
                         </span>
                       )}
+                      {key === "recommend" && (
+                        <span onClick={(e) => e.stopPropagation()}>
+                          <InfoDot
+                            open={recommendHintOpen}
+                            onClick={() => setRecommendHintOpen((v) => !v)}
+                            label="추천순 설명"
+                            glyph="!"
+                          />
+                        </span>
+                      )}
                     </span>
                     {sort === key && <span className="text-xs">✓</span>}
                   </div>
+                  {key === "recommend" && recommendHintOpen && (
+                    <p
+                      onClick={(e) => e.stopPropagation()}
+                      className="mx-4 mb-2 rounded bg-[#f4f7ff] px-2.5 py-2 text-[11px] leading-snug text-[#3b5bdb]"
+                    >
+                      {SORT_NOTE.recommend}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
