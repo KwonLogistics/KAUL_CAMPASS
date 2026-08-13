@@ -19,6 +19,7 @@ export const DEFAULT_SETTINGS: DaySettings = {
   dayStart: "",
   dayEnd: "",
   targetFinish: "20:00",
+  autoDispatchConditions: [],
 };
 
 export const SETTINGS_STORAGE_KEY = "kt.daySettings.v1";
@@ -43,6 +44,7 @@ export function normalizeSettings(raw: unknown): DaySettings {
     dayStart: text(r.dayStart, DEFAULT_SETTINGS.dayStart),
     dayEnd: text(r.dayEnd, DEFAULT_SETTINGS.dayEnd),
     targetFinish: text(r.targetFinish, DEFAULT_SETTINGS.targetFinish),
+    autoDispatchConditions: Array.isArray(r.autoDispatchConditions) ? r.autoDispatchConditions as import("@/lib/types").AutoDispatchCondition[] : [],
   };
 }
 

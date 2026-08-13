@@ -112,6 +112,7 @@ export interface DaySettings {
   dayEnd: string;
   /** "HH:mm" */
   targetFinish: string;
+  autoDispatchConditions: AutoDispatchCondition[];
 }
 
 /* ────────────────────────────────────────────────────────────────
@@ -156,4 +157,21 @@ export interface RankedOrder {
   reason: string;
   /** 조건에 안 맞아도 목록에서 빼지 않는다. 대신 이 플래그로 회색 처리한다. */
   overTarget: boolean;
+}
+
+export interface AutoDispatchCondition {
+  id: string;
+  enabled: boolean;
+  pickupSido: string;
+  pickupSigungu: string;
+  pickupRadius: string;
+  dropoffSido: string;
+  dropoffSigungu: string;
+  minFare: string;
+  pickupDate: string;
+  dropoffDate: string;
+  fareType: string;
+  loadOption: string;
+  bodyType: string;
+  ton: string;
 }

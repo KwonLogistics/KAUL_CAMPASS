@@ -26,6 +26,7 @@ import { useAppState } from "@/lib/store/AppStateProvider";
 import { DEFAULT_SETTINGS } from "@/lib/store/settings-store";
 import CallMetrics from "@/components/common/CallMetrics";
 import InfoDot from "@/components/common/InfoDot";
+import AutoDispatchSettingsModal from "@/components/cargo/AutoDispatchSettingsModal";
 
 type SortKey =
   | "latest"
@@ -148,6 +149,7 @@ export default function CargoInfo() {
   const [sortOpen, setSortOpen] = useState(false);
   const [sort, setSort] = useState<SortKey>("latest");
   const [recommendHintOpen, setRecommendHintOpen] = useState(false);
+  const [autoDispatchOpen, setAutoDispatchOpen] = useState(false);
   const { settings, hydrated } = useAppState();
 
   // localStorage 복원 전에는 항상 빈 설정으로 본다 — 서버 렌더와 클라 첫 렌더의
@@ -328,13 +330,19 @@ export default function CargoInfo() {
         </div>
       </div>
 
-      {/* Floating Button */}
-      <div className="absolute bottom-[20px] w-full max-w-[480px] px-5 flex justify-center z-30 pointer-events-none">
-        <button className="pointer-events-auto bg-[#f4f7ff]/95 backdrop-blur-sm border border-[#3b5bdb] text-[#3b5bdb] shadow-lg rounded-full py-3.5 px-8 font-bold text-[15px] flex items-center justify-center transition-transform hover:scale-105">
+      {/* Floating Button (Bottom Right) */}
+      <div className="absolute bottom-[80px] right-4 z-30 flex justify-end">
+        <button
+          onClick={() => setAutoDispatchOpen(true)}
+          className="bg-[#f4f7ff]/95 backdrop-blur-sm border border-[#3b5bdb] text-[#3b5bdb] shadow-lg rounded-full px-5 py-2.5 font-bold text-[13px] flex items-center justify-center transition-transform hover:scale-105"
+        >
           자동배차 예약하고 오더 선점하기
-          <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"></path></svg>
         </button>
       </div>
+
+      {autoDispatchOpen && (
+        <AutoDispatchSettingsModal onClose={() => setAutoDispatchOpen(false)} />
+      )}
     </div>
   );
 }
