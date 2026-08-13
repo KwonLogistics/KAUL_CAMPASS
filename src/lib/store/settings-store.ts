@@ -12,16 +12,39 @@
 import type { DaySettings } from "@/lib/types";
 
 export const DEFAULT_SETTINGS: DaySettings = {
-  // 오더 축 — 어떤 오더를 목록에 볼까
-  preferPickup: "",
-  preferDropoff: "",
-  // 하루 축 — 내 하루가 어디서 시작해서 어디서 끝나나
+  // 오더 축 — 어떤 오더를 목록에 볼까 (지역 라벨 배열)
+  preferPickup: [],
+  preferDropoff: [],
+  // 하루 축 — 내 하루가 어디서 시작해서 어디서 끝나나 (지점 하나씩)
   dayStart: "",
   dayEnd: "",
   targetFinish: "20:00",
 };
 
 export const SETTINGS_STORAGE_KEY = "kt.daySettings.v1";
+
+/**
+ * localStorage 에서 읽은 값을 타입에 맞춘다.
+ * 선호 상하차지가 문자열 한 칸이던 시절의 저장값이 남아 있을 수 있다 —
+ * 그대로 들여보내면 화면이 .map 에서 죽는다. 데모 중에 흰 화면이 뜨는 게 최악이다.
+ */
+export function normalizeSettings(raw: unknown): DaySettings {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const list = (v: unknown): string[] => {
+    if (Array.isArray(v)) return v.filter((x): x is string => typeof x === "string");
+    return typeof v === "string" && v ? [v] : [];
+  };
+  const text = (v: unknown, fallback: string): string =>
+    typeof v === "string" ? v : fallback;
+
+  return {
+    preferPickup: list(r.preferPickup),
+    preferDropoff: list(r.preferDropoff),
+    dayStart: text(r.dayStart, DEFAULT_SETTINGS.dayStart),
+    dayEnd: text(r.dayEnd, DEFAULT_SETTINGS.dayEnd),
+    targetFinish: text(r.targetFinish, DEFAULT_SETTINGS.targetFinish),
+  };
+}
 
 /** 동의의 AI 리포트가 호출하는 유일한 진입점. 하루 축 두 칸만 덮어쓴다. */
 export function applyRoute(
