@@ -12,7 +12,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { spotOrders, renderDateBadge, isOvernightLoad } from "@/data/mock-data";
+import { spotOrders, isOvernightLoad, CALENDAR_2026_08 } from "@/data/mock-data";
 import type { SpotOrder } from "@/lib/types";
 import { computeEconomics } from "@/lib/engine/economics";
 import { estimateWait } from "@/lib/engine/wait-time";
@@ -43,6 +43,13 @@ const SORT_NOTE: Partial<Record<SortKey, string>> = {
 
 const OUR_AXES: SortKey[] = ["wage", "wait"];
 
+/**
+ * 화물 정보 탭은 카카오 오더 풀이다. 외부 앱 오더는 여기 뜨지 않는다.
+ * 외부 오더는 스케줄 탭의 「외부 오더 등록」으로 들어와 캘린더에만 꽂힌다 —
+ * 그게 우리가 하려는 것이고, 이 목록에 섞으면 두 경로의 구분이 사라진다.
+ */
+const kakaoOrders = spotOrders.filter((o) => o.source === "kakao");
+
 function sortOrders(list: SpotOrder[], key: SortKey): SpotOrder[] {
   const arr = [...list];
   switch (key) {
@@ -69,9 +76,23 @@ function sortOrders(list: SpotOrder[], key: SortKey): SpotOrder[] {
   }
 }
 
+function getDayTag(dateBucket: "D+0" | "D+1" | "D+2+", dateISO: string, isPickup: boolean) {
+  if (dateBucket === "D+0") return isPickup ? "당상" : "당착";
+  if (dateBucket === "D+1") return isPickup ? "내상" : "내착";
+  
+  const day = CALENDAR_2026_08[dateISO] || "";
+  if (day === "월") return isPickup ? "월상" : "월착";
+  
+  return isPickup ? "상차" : "하차";
+}
+
 /** 배지는 저장하지 않고 날짜·조건에서 파생한다. */
 function badgesOf(order: SpotOrder): string[] {
-  const out = [renderDateBadge(order)];
+  const out = [];
+  
+  // 선호지역 또는 맞춤노선 태그. 여기서는 거리가 30km 이내인 경우 예시로 추가합니다.
+  if (order.distance.toPickupKm <= 30) out.push("선호지역");
+
   if (isOvernightLoad(order)) out.push("야상");
   if (order.dropoff.forklift) out.push("지게차");
   if (order.dropoff.manual) out.push("수작업");
@@ -83,13 +104,13 @@ export default function CargoInfo() {
   const [sortOpen, setSortOpen] = useState(false);
   const [sort, setSort] = useState<SortKey>("latest");
 
-  const orders = useMemo(() => sortOrders(spotOrders, sort), [sort]);
+  const orders = useMemo(() => sortOrders(kakaoOrders, sort), [sort]);
   const note = SORT_NOTE[sort];
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#f4f4f6] relative pb-[120px]">
+    <div className="flex flex-col absolute inset-0 pb-[60px] bg-[#f4f4f6]">
       {/* Header */}
-      <div className="bg-[#3b5bdb] text-white flex justify-between items-center px-4 py-3 sticky top-0 z-20">
+      <div className="shrink-0 bg-[#3b5bdb] text-white flex justify-between items-center px-4 py-3 z-20">
         <h1 className="text-lg font-bold">화물 정보</h1>
         <div className="flex items-center bg-white/20 px-3 py-1 rounded-full border border-white/30 cursor-pointer">
           <span className="text-sm font-medium mr-2">오더추천 ON</span>
@@ -100,7 +121,7 @@ export default function CargoInfo() {
       </div>
 
       {/* Sub Header (Filters) */}
-      <div className="bg-white flex items-center px-4 py-3 border-b border-gray-200 sticky top-[52px] z-10">
+      <div className="shrink-0 bg-white flex items-center px-4 py-3 border-b border-gray-200 z-10">
         <div
           className="flex items-center text-gray-700 font-medium text-[15px] cursor-pointer relative mr-auto"
           onClick={() => setSortOpen(!sortOpen)}
@@ -152,13 +173,13 @@ export default function CargoInfo() {
 
       {/* 우리가 더한 정렬을 골랐을 때만 근거 한 줄 */}
       {note && (
-        <div className="bg-[#f4f7ff] border-b border-[#d6e2ff] px-5 py-2.5">
+        <div className="shrink-0 bg-[#f4f7ff] border-b border-[#d6e2ff] px-5 py-2.5">
           <p className="text-[11px] leading-snug text-[#3b5bdb]">{note}</p>
         </div>
       )}
 
       {/* Banner */}
-      <div className="bg-[#eef2ff] px-5 py-5 flex justify-between items-center relative overflow-hidden">
+      <div className="shrink-0 bg-[#eef2ff] px-5 py-5 flex justify-between items-center relative overflow-hidden">
         <div className="z-10">
           <p className="text-gray-800 font-bold text-base leading-snug">화물기사 자격을 등록하면<br/>오더를 수행할 수 있어요</p>
           <p className="text-[#3b5bdb] font-semibold text-sm mt-2 flex items-center cursor-pointer">
@@ -169,13 +190,10 @@ export default function CargoInfo() {
       </div>
 
       {/* Order List */}
-      <div className="flex flex-col bg-white">
+      <div className="flex-1 overflow-y-auto bg-white pb-[60px]">
+        <div className="flex flex-col">
         {orders.map((order) => (
           <Link href={`/cargo/${order.id}`} key={order.id} className="block border-t-[6px] border-gray-100 px-5 py-5 relative cursor-pointer hover:bg-gray-50 transition-colors">
-            {order.source === "external" && (
-              <div className="absolute top-5 right-5 bg-gray-100 text-gray-500 text-[10px] px-1.5 py-0.5 rounded font-bold">외부</div>
-            )}
-
             <div className="flex items-center gap-1.5 mb-3 flex-wrap">
               {badgesOf(order).map((b) => (
                 <span key={b} className="text-[11px] px-1.5 py-0.5 rounded font-bold border bg-[#f4f7ff] text-[#3b5bdb] border-[#d6e2ff]">{b}</span>
@@ -187,7 +205,14 @@ export default function CargoInfo() {
               <div className="flex items-center">
                 <div className="w-2 h-2 rounded-full border-[1.5px] border-gray-400 mr-2 bg-transparent"></div>
                 <span className="font-bold text-gray-900 text-base">{order.pickup.sido} {order.pickup.sigungu} {order.pickup.dong}</span>
-                <span className="ml-2 bg-gray-400 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">상차</span>
+                {order.pickup.date !== "D+0" && CALENDAR_2026_08[order.pickup.dateISO] && (
+                  <span className="ml-2 bg-gray-400 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
+                    {CALENDAR_2026_08[order.pickup.dateISO]}
+                  </span>
+                )}
+                <span className="ml-1 bg-[#e03131] text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
+                  {getDayTag(order.pickup.date, order.pickup.dateISO, true)}
+                </span>
                 <span className="ml-1 text-[13px] text-gray-500 font-medium">{order.pickup.time}</span>
               </div>
 
@@ -199,7 +224,9 @@ export default function CargoInfo() {
               <div className="flex items-center">
                 <div className="w-2 h-2 rounded-full bg-[#3b5bdb] mr-2"></div>
                 <span className="font-bold text-gray-900 text-base">{order.dropoff.sido} {order.dropoff.sigungu} {order.dropoff.dong}</span>
-                <span className="ml-2 bg-[#3b5bdb] text-white text-[10px] px-1.5 py-0.5 rounded font-bold">하차</span>
+                <span className="ml-1 bg-[#3b5bdb] text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
+                  {getDayTag(order.dropoff.date, order.dropoff.dateISO, false)}
+                </span>
                 <span className="ml-1 text-[13px] text-gray-500 font-medium">{order.dropoff.time}</span>
               </div>
             </div>
@@ -232,12 +259,13 @@ export default function CargoInfo() {
                 <span className="text-[22px] font-extrabold text-gray-900">{order.fare.total.toLocaleString()}</span>
               </div>
             </div>
-          </Link>
-        ))}
+            </Link>
+          ))}
+        </div>
       </div>
 
       {/* Floating Button */}
-      <div className="fixed bottom-[80px] w-full max-w-[480px] px-5 flex justify-center z-30 pointer-events-none">
+      <div className="absolute bottom-[20px] w-full max-w-[480px] px-5 flex justify-center z-30 pointer-events-none">
         <button className="pointer-events-auto bg-[#f4f7ff]/95 backdrop-blur-sm border border-[#3b5bdb] text-[#3b5bdb] shadow-lg rounded-full py-3.5 px-8 font-bold text-[15px] flex items-center justify-center transition-transform hover:scale-105">
           자동배차 예약하고 오더 선점하기
           <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7"></path></svg>
