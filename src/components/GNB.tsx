@@ -8,7 +8,8 @@ export default function GNB() {
   const navItems = [
     { name: '홈', path: '/', icon: '🏠' },
     { name: '화물 정보', path: '/cargo', icon: '🧭' },
-    { name: '내 운송', path: '/transport', icon: '📋' },
+    // 「내 운송」 자리를 스케줄 탭으로 쓴다 (소유: 지수). 기존 /transport 화면은 남겨둔다.
+    { name: '스케줄', path: '/schedule', icon: '📋' },
     { name: '정산', path: '/settlement', icon: '₩' },
     { name: '메뉴', path: '/menu', icon: '≡' },
   ];
