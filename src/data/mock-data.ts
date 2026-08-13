@@ -862,3 +862,7 @@ export const conditionStatusLabels: Record<ConditionStatus, string> = {
   추정: "원문에서 추정",
   미상: "해석 불가 — 원문 그대로 표시",
 };
+
+/** 선호지역 반경 30km 내 포함 시/군 목록 (기사 차고지: 화성 향남) */
+export const CITIES_IN_RADIUS = ["화성", "안산", "평택", "수원", "오산", "안성"];
+
