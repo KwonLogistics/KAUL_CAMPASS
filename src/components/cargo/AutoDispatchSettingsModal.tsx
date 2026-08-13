@@ -143,14 +143,34 @@ export default function AutoDispatchSettingsModal({
       {/* AI Prompt Input */}
       <div className="bg-white p-4 border-b border-gray-200">
         <div className="text-[13px] font-bold text-[#3b5bdb] mb-2">✨ AI 조건 자동 생성</div>
-        <input
-          type="text"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="예: 내일 부산으로 가는 5톤 혼적 오더 잡아줘"
-          className="w-full border border-gray-300 rounded px-3 py-2 text-sm mb-2 focus:outline-none focus:border-[#3b5bdb]"
-          disabled={isGenerating}
-        />
+        
+        <div className="mb-3 rounded-lg border border-blue-100 bg-blue-50 p-3 text-[12px] text-blue-700">
+          <p className="font-bold flex items-center gap-1.5 text-blue-800">
+            <span className="flex h-[18px] w-[18px] items-center justify-center rounded-full bg-blue-600 text-[11px] text-white">!</span>
+            복잡한 조건 설정은 이제 그만!
+          </p>
+          <p className="mt-1.5 leading-relaxed text-blue-700/90">
+            "집에 가는 오더 잡아줘" 한 마디면, 기사님의 현재 위치와 선호 복귀점을 AI가 스스로 파악해 빈칸을 척척 채워줍니다.
+          </p>
+        </div>
+
+        <div className="relative mb-2">
+          <input
+            type="text"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="예: 내일 부산으로 가는 5톤 혼적 오더 잡아줘"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2.5 pr-10 text-sm focus:outline-none focus:border-[#3b5bdb]"
+            disabled={isGenerating}
+          />
+          <button 
+            onClick={() => alert("음성 인식 기능은 준비 중입니다.")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1.5 text-gray-400 hover:bg-gray-100 hover:text-[#3b5bdb] transition-colors"
+            title="음성으로 조건 입력하기"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+          </button>
+        </div>
         <div className="flex gap-2">
           <button
             onClick={() => handleGenerateAI(false)}
