@@ -161,7 +161,7 @@ export default function SmartRouteAssistModal({
           },
           remarksRaw: "도착 30분 전 미리 연락 부탁드립니다. 안전 운행하세요!",
           conditions: [],
-          vehicleFit: { ok: true },
+          vehicleFit: { ok: true, reason: "" },
           postedAt: "방금"
         };
         setGeneratedOrder(mockOrder);
