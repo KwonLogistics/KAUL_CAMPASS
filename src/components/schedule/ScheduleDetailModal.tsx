@@ -35,8 +35,8 @@ export default function ScheduleDetailModal({
   const fixedSchedule = item.orderKind === "fixed" ? (item.order as FixedSchedule) : null;
 
   return (
-    <div className="fixed inset-0 z-50 mx-auto flex max-w-[480px] flex-col justify-end bg-black/40">
-      <div className="max-h-[85vh] overflow-y-auto rounded-t-2xl bg-white p-5 pb-8">
+    <div className="fixed inset-0 z-[60] mx-auto flex max-w-[480px] flex-col justify-end bg-black/40">
+      <div className="max-h-[85vh] overflow-y-auto rounded-t-2xl bg-white p-5 pb-10">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-[17px] font-bold text-gray-900">운행 상세</h2>
           <button onClick={onClose} className="text-[22px] leading-none text-gray-400">
