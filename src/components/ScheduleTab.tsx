@@ -7,7 +7,7 @@ import ExternalOrderSheet from "./order-import/ExternalOrderSheet";
 import { useAppState } from "@/lib/store/AppStateProvider";
 import { scheduleItems } from "./schedule/mock-schedule";
 import { convertSpotOrderToScheduleItem } from "./schedule/convert";
-import { buildDayTimeline } from "./schedule/timeline";
+import { buildDayTimeline, isRecommendationEligible, getEdgeRestBlocks } from "./schedule/timeline";
 import { getMetaBadges, getConditionBadges, getRouteLabel, getFareTotal } from "./schedule/badges";
 import ScheduleDetailModal from "./schedule/ScheduleDetailModal";
 import type { ScheduleItem } from "./schedule/types";
@@ -50,13 +50,30 @@ export default function ScheduleTab() {
   const dayBlocks = useMemo(() => buildDayTimeline(currentDaySchedules), [currentDaySchedules]);
   const tripBlocks = useMemo(() => dayBlocks.filter((b) => b.kind === "trip"), [dayBlocks]);
 
+  // 첫 일정 이전 / 마지막 일정 이후 여백 중 추천 조건(90분 이상 등)을 만족하는 구간만 별도로 추가
+  const edgeRestBlocks = useMemo(
+    () => getEdgeRestBlocks(selectedDateISO, tripBlocks, currentDaySchedules),
+    [selectedDateISO, tripBlocks, currentDaySchedules]
+  );
+  const renderBlocks = useMemo(
+    () => [...dayBlocks, ...edgeRestBlocks].sort((a, b) => a.startMin - b.startMin),
+    [dayBlocks, edgeRestBlocks]
+  );
+
   // 해당 날짜의 첫 업무 1시간 전 ~ 마지막 업무 1~2시간 후까지만 시간축을 가변으로 생성
+  // (앞뒤 추천 여백 블록이 있으면 그 범위까지 포함해서 잘리지 않게 한다)
   const hasTrips = tripBlocks.length > 0;
   const earliestHour = hasTrips
-    ? Math.min(...tripBlocks.map((b) => Math.floor(b.startMin / 60)))
+    ? Math.min(
+        ...tripBlocks.map((b) => Math.floor(b.startMin / 60)),
+        ...edgeRestBlocks.map((b) => Math.floor(b.startMin / 60))
+      )
     : 8;
   const latestHour = hasTrips
-    ? Math.max(...tripBlocks.map((b) => Math.ceil(b.endMin / 60)))
+    ? Math.max(
+        ...tripBlocks.map((b) => Math.ceil(b.endMin / 60)),
+        ...edgeRestBlocks.map((b) => Math.ceil(b.endMin / 60))
+      )
     : 18;
 
   // 시작시각(첫 업무 1시간 전, 최소 0시), 종료시각(마지막 업무 1시간 후, 최소 startHour+4, 최대 24시)
@@ -261,7 +278,7 @@ export default function ScheduleTab() {
                 ))}
 
                 {/* 겹치지 않는 하루 체인만 렌더링 — 트립 블록 / 휴식·공차 블록 */}
-                {dayBlocks.map((block) => {
+                {renderBlocks.map((block) => {
                   const topOffset =
                     ((block.startMin - timelineStartHour * 60) / 60) * HOUR_HEIGHT + 8;
                   const height = Math.max(
@@ -275,29 +292,37 @@ export default function ScheduleTab() {
                       gapMin >= 60
                         ? `${Math.floor(gapMin / 60)}시간${gapMin % 60 > 0 ? ` ${gapMin % 60}분` : ""}`
                         : `${gapMin}분`;
-                    // 90분 이상 빈 시간에만 AI 스마트 경로 추천 CTA를 노출한다 (같은 날짜 안의 gap만 —
-                    // 오버나잇 일정이 다음 날로 넘어가는 구간은 지금 구조에서 계산 대상이 아니다)
-                    const isRecommendable = gapMin >= 90;
+                    // 90분 이상 + 과거 날짜 아님 + 그 날짜가 전부 completed는 아님 + (오늘이면) 아직 안 지난 gap
+                    // 판정은 전부 timeline.ts의 isRecommendationEligible이 데모 기준시각(convert.ts)을 재사용해서 계산
+                    const isRecommendable = isRecommendationEligible(
+                      selectedDateISO,
+                      block,
+                      currentDaySchedules
+                    );
                     return (
                       <div
                         key={`rest-${block.startMin}`}
                         className="absolute left-3 right-4 flex flex-col items-center justify-center gap-1 overflow-hidden rounded-r-md border-l-[4px] border-dashed border-gray-300 bg-[#fafafa] z-0"
                         style={{ top: `${topOffset}px`, height: `${height}px` }}
                       >
-                        {height >= 28 ? (
+                        {height >= 28 && isRecommendable && height >= 60 ? (
+                          <>
+                            <span className="text-[11px] font-bold text-gray-400">
+                              {gapLabel}의 빈 시간이 있어요
+                            </span>
+                            <button
+                              type="button"
+                              className="mt-1 flex items-center gap-1 rounded-full border border-[#3b5bdb]/30 bg-white px-2.5 py-1 text-[10px] font-bold text-[#3b5bdb] shadow-sm transition-colors hover:bg-[#f4f7ff] cursor-pointer"
+                            >
+                              <span>✨</span> AI 스마트 경로 추천 받기
+                            </button>
+                          </>
+                        ) : height >= 28 ? (
                           <>
                             <span className="text-[11px] font-bold text-gray-400">
                               휴식 및 공차 이동
                             </span>
                             <span className="text-[10px] text-gray-300">{gapLabel}</span>
-                            {isRecommendable && height >= 60 && (
-                              <button
-                                type="button"
-                                className="mt-1 flex items-center gap-1 rounded-full border border-[#3b5bdb]/30 bg-white px-2.5 py-1 text-[10px] font-bold text-[#3b5bdb] shadow-sm transition-colors hover:bg-[#f4f7ff] cursor-pointer"
-                              >
-                                <span>✨</span> AI 스마트 경로 추천 받기
-                              </button>
-                            )}
                           </>
                         ) : height >= 14 ? (
                           <span className="text-[9px] font-bold text-gray-400">
