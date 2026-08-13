@@ -36,7 +36,7 @@ export default function ScheduleTab() {
       addScheduled({
         order,
         dateISO: order.pickup.dateISO,
-        via: "auto",
+        via: "kakao",
         addedAt: new Date().toISOString(),
       });
       setMatchedOrder(order);
