@@ -20,9 +20,47 @@ export default function ScheduleTab() {
   const [showExternal, setShowExternal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
 
-  const [selectedDate, setSelectedDate] = useState<number>(13);
-  const weekDays = ["월", "화", "수", "목", "금", "토", "일"];
-  const weekDates = [10, 11, 12, 13, 14, 15, 16];
+  const [selectedDateISO, setSelectedDateISO] = useState<string>("2026-08-13");
+  const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
+
+  // selectedDateISO를 중앙(index 3)으로 두고 앞뒤 3일씩 총 7일을 동적으로 롤링 생성
+  const rollingDays = useMemo(() => {
+    const [y, m, d] = selectedDateISO.split("-").map(Number);
+    const baseDate = new Date(y, m - 1, d);
+
+    return [-3, -2, -1, 0, 1, 2, 3].map((offset) => {
+      const targetDate = new Date(baseDate);
+      targetDate.setDate(baseDate.getDate() + offset);
+
+      const year = targetDate.getFullYear();
+      const month = targetDate.getMonth() + 1;
+      const dateNum = targetDate.getDate();
+      const dayOfWeek = targetDate.getDay();
+      const iso = `${year}-${month.toString().padStart(2, "0")}-${dateNum.toString().padStart(2, "0")}`;
+
+      return {
+        iso,
+        year,
+        month,
+        dateNum,
+        dayName: DAY_NAMES[dayOfWeek],
+        isSelected: iso === selectedDateISO,
+        isToday: iso === "2026-08-13",
+      };
+    });
+  }, [selectedDateISO]);
+
+  const currentHeaderYearMonth = useMemo(() => {
+    const [y, m] = selectedDateISO.split("-").map(Number);
+    return `${y}년 ${m}월`;
+  }, [selectedDateISO]);
+
+  const moveDays = (delta: number) => {
+    const [y, m, d] = selectedDateISO.split("-").map(Number);
+    const nextDate = new Date(y, m - 1, d + delta);
+    const nextIso = `${nextDate.getFullYear()}-${(nextDate.getMonth() + 1).toString().padStart(2, "0")}-${nextDate.getDate().toString().padStart(2, "0")}`;
+    setSelectedDateISO(nextIso);
+  };
 
   // 순범: schedule-store.ts(실제 등록된 외부 오더)를 지수의 scheduleItems 파이프라인에 합류시킨다.
   // mock-schedule.ts 주석이 이 자리를 비워뒀다 — "지금은 그 저장소가 비어 있어서 안 씀".
@@ -37,9 +75,6 @@ export default function ScheduleTab() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const HOUR_HEIGHT = 80;
-
-  // selectedDate(일자 숫자) → "YYYY-MM-DD". 기존 요일 선택 UI는 8월 고정
-  const selectedDateISO = `2026-08-${selectedDate.toString().padStart(2, "0")}`;
 
   const currentDaySchedules = useMemo(
     () => allItems.filter((item) => item.date === selectedDateISO),
@@ -91,7 +126,7 @@ export default function ScheduleTab() {
     if (viewMode === "calendar" && calendarMode === "weekly" && scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }, [selectedDate, viewMode, calendarMode, tripBlocks]);
+  }, [selectedDateISO, viewMode, calendarMode, tripBlocks]);
 
   return (
     <div className="flex flex-col h-full bg-[#f8f9fa] relative">
@@ -203,7 +238,25 @@ export default function ScheduleTab() {
           {/* Calendar Header */}
           <div className="bg-white px-4 py-3 border-b border-gray-100 z-10 shadow-sm">
             <div className="flex justify-between items-center mb-3">
-              <span className="font-bold text-gray-900 text-[16px]">2026년 8월</span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => moveDays(-7)}
+                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 text-[16px] font-bold cursor-pointer transition-colors"
+                  title="이전 주"
+                >
+                  ‹
+                </button>
+                <span className="font-bold text-gray-900 text-[16px] min-w-[85px] text-center">
+                  {currentHeaderYearMonth}
+                </span>
+                <button
+                  onClick={() => moveDays(7)}
+                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-700 text-[16px] font-bold cursor-pointer transition-colors"
+                  title="다음 주"
+                >
+                  ›
+                </button>
+              </div>
               <button
                 className="text-[11px] font-bold text-[#3b5bdb] bg-[#f4f7ff] px-2.5 py-1.5 rounded border border-[#d6e2ff] cursor-pointer hover:bg-[#eaf0ff]"
                 onClick={() => setCalendarMode("monthly")}
@@ -213,37 +266,32 @@ export default function ScheduleTab() {
             </div>
 
             <div className="flex justify-between mt-2">
-              {weekDays.map((day, idx) => {
-                const date = weekDates[idx];
-                const isSelected = selectedDate === date;
-                const isToday = date === 13;
-                return (
-                  <div
-                    key={idx}
-                    onClick={() => setSelectedDate(date)}
-                    className="flex flex-col items-center cursor-pointer"
+              {rollingDays.map((d) => (
+                <div
+                  key={d.iso}
+                  onClick={() => setSelectedDateISO(d.iso)}
+                  className="flex flex-col items-center cursor-pointer flex-1"
+                >
+                  <span
+                    className={`text-[12px] mb-1.5 font-bold ${
+                      d.isSelected ? "text-[#3b5bdb]" : "text-gray-400"
+                    }`}
                   >
-                    <span
-                      className={`text-[12px] mb-1.5 font-bold ${
-                        isSelected ? "text-[#3b5bdb]" : "text-gray-400"
-                      }`}
-                    >
-                      {day}
-                    </span>
-                    <div
-                      className={`w-8 h-8 flex items-center justify-center rounded-full text-[14px] font-bold ${
-                        isSelected
-                          ? "bg-[#3b5bdb] text-white shadow-md"
-                          : isToday
-                          ? "border border-[#3b5bdb] text-[#3b5bdb]"
-                          : "text-gray-700 hover:bg-gray-100"
-                      }`}
-                    >
-                      {date}
-                    </div>
+                    {d.dayName}
+                  </span>
+                  <div
+                    className={`w-8 h-8 flex items-center justify-center rounded-full text-[14px] font-bold transition-all ${
+                      d.isSelected
+                        ? "bg-[#3b5bdb] text-white shadow-md scale-105"
+                        : d.isToday
+                        ? "border border-[#3b5bdb] text-[#3b5bdb]"
+                        : "text-gray-700 hover:bg-gray-100"
+                    }`}
+                  >
+                    {d.dateNum}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           </div>
 
@@ -459,16 +507,9 @@ export default function ScheduleTab() {
         <ExternalOrderSheet
           onClose={() => setShowExternal(false)}
           onRegistered={(dateISO) => {
-            // 주간 보기는 아직 8월 10~16일 한 주만 보여준다(팀 스케줄 탭 자체의 현재 범위) —
-            // 그 범위 밖 날짜는 리스트 보기로 보내야 등록한 오더가 실제로 눈에 보인다.
-            const day = Number(dateISO.slice(8, 10));
-            if (dateISO.startsWith("2026-08") && day >= 10 && day <= 16) {
-              setViewMode("calendar");
-              setCalendarMode("weekly");
-              setSelectedDate(day);
-            } else {
-              setViewMode("list");
-            }
+            setViewMode("calendar");
+            setCalendarMode("weekly");
+            setSelectedDateISO(dateISO);
           }}
         />
       )}
