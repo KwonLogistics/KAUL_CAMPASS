@@ -266,10 +266,13 @@ export default function ScheduleTab() {
                       gapMin >= 60
                         ? `${Math.floor(gapMin / 60)}시간${gapMin % 60 > 0 ? ` ${gapMin % 60}분` : ""}`
                         : `${gapMin}분`;
+                    // 90분 이상 빈 시간에만 AI 스마트 경로 추천 CTA를 노출한다 (같은 날짜 안의 gap만 —
+                    // 오버나잇 일정이 다음 날로 넘어가는 구간은 지금 구조에서 계산 대상이 아니다)
+                    const isRecommendable = gapMin >= 90;
                     return (
                       <div
                         key={`rest-${block.startMin}`}
-                        className="absolute left-3 right-4 flex flex-col items-center justify-center overflow-hidden rounded-r-md border-l-[4px] border-dashed border-gray-300 bg-[#fafafa] z-0"
+                        className="absolute left-3 right-4 flex flex-col items-center justify-center gap-1 overflow-hidden rounded-r-md border-l-[4px] border-dashed border-gray-300 bg-[#fafafa] z-0"
                         style={{ top: `${topOffset}px`, height: `${height}px` }}
                       >
                         {height >= 28 ? (
@@ -278,6 +281,14 @@ export default function ScheduleTab() {
                               휴식 및 공차 이동
                             </span>
                             <span className="text-[10px] text-gray-300">{gapLabel}</span>
+                            {isRecommendable && height >= 60 && (
+                              <button
+                                type="button"
+                                className="mt-1 flex items-center gap-1 rounded-full border border-[#3b5bdb]/30 bg-white px-2.5 py-1 text-[10px] font-bold text-[#3b5bdb] shadow-sm transition-colors hover:bg-[#f4f7ff] cursor-pointer"
+                              >
+                                <span>✨</span> AI 스마트 경로 추천 받기
+                              </button>
+                            )}
                           </>
                         ) : height >= 14 ? (
                           <span className="text-[9px] font-bold text-gray-400">
