@@ -518,22 +518,49 @@ export default function ReportDashboard({
               </div>
             </div>
 
-            {/* 보조 요소: 가장 자주 뛴 구간 */}
-            <div className="border-t border-gray-100 pt-3 space-y-1 text-[12px]">
-              <div className="text-gray-500 font-bold">가장 자주 뛴 구간</div>
-              <div className="text-gray-800 font-medium tabular-nums">
-                {stats.mostFrequentRoute.from} → {stats.mostFrequentRoute.to}{" "}
-                {stats.mostFrequentRoute.count}회 · 평균 대기 {stats.mostFrequentRoute.avgWaitMin}분 · 평균 운임 {stats.mostFrequentRoute.avgFare.toLocaleString()}원
+            {/* ★ 핵심 강조: 가장 자주 뛴 구간 (시각적 하이라이트 카드) */}
+            <div className="pt-2">
+              <div className="bg-[#f4f7ff] border border-[#d6e2ff] rounded-xl p-4 space-y-2.5 shadow-2xs">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-bold text-[#1e40af] bg-white px-2 py-0.5 rounded border border-[#bfdbfe]">
+                      최다 운행 구간
+                    </span>
+                    <span className="text-[12px] font-bold text-[#3b5bdb]">
+                      지난 30일
+                    </span>
+                  </div>
+                  <span className="text-[13px] font-extrabold text-[#3b5bdb] tabular-nums">
+                    총 {stats.mostFrequentRoute.count}회 운행
+                  </span>
+                </div>
+
+                <div className="flex items-baseline justify-between border-t border-blue-100/80 pt-2">
+                  <div className="text-[16px] font-extrabold text-gray-900 tracking-tight">
+                    {stats.mostFrequentRoute.from} ➔ {stats.mostFrequentRoute.to}
+                  </div>
+                  <div className="text-[13px] font-extrabold text-gray-900 tabular-nums">
+                    평균 {stats.mostFrequentRoute.avgFare.toLocaleString()}원
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center text-[12px] text-gray-600 bg-white/80 p-2.5 rounded-lg border border-blue-100/60">
+                  <span>평균 대기 시간</span>
+                  <span className="font-bold text-gray-900 tabular-nums">
+                    {stats.mostFrequentRoute.avgWaitMin}분
+                  </span>
+                </div>
               </div>
             </div>
 
             {/* 선호지역 설정 열기 버튼 */}
-            <div className="pt-2">
+            <div className="pt-1">
               <button
                 onClick={openPreferredRegionSettings}
-                className="w-full py-3 bg-white border border-gray-300 hover:bg-gray-50 active:bg-gray-100 text-gray-800 font-bold rounded-lg text-[13px] transition-colors cursor-pointer shadow-2xs"
+                className="w-full py-3 bg-white border border-[#3b5bdb] hover:bg-blue-50/50 active:bg-blue-100/50 text-[#3b5bdb] font-bold rounded-lg text-[13px] transition-colors cursor-pointer shadow-2xs flex items-center justify-center gap-1"
               >
-                선호지역 설정 열기
+                <span>선호지역 설정 열기</span>
+                <span className="text-[12px]">➔</span>
               </button>
             </div>
           </div>
