@@ -10,6 +10,8 @@ import {
   type PastTrip,
   type FixedSchedule,
 } from "@/data/mock-data";
+import { useAppState } from "@/lib/store/AppStateProvider";
+import { type ScheduledOrder } from "@/lib/store/schedule-store";
 
 interface DayData {
   dateISO: string;
@@ -23,6 +25,7 @@ interface DayData {
   hasMismatch: boolean;
   trips: PastTrip[];
   fixedList: FixedSchedule[];
+  externalList: ScheduledOrder[];
 }
 
 interface MonthlyCalendarProps {
@@ -30,6 +33,9 @@ interface MonthlyCalendarProps {
 }
 
 export default function MonthlyCalendar({ onOpenReport }: MonthlyCalendarProps) {
+  const { scheduled, hydrated } = useAppState();
+  const externalOrders = hydrated ? scheduled : [];
+
   const [filterPeriod, setFilterPeriod] = useState<"past30" | "thisMonth">("past30");
   const [selectedDateISO, setSelectedDateISO] = useState<string>(TODAY_ISO);
 
@@ -56,20 +62,21 @@ export default function MonthlyCalendar({ onOpenReport }: MonthlyCalendarProps) 
 
     let dayTrips: PastTrip[] = [];
     let dayFixed: FixedSchedule[] = [];
+    const dayExternal = externalOrders.filter((s) => s.dateISO === dateISO);
     let tripsCount = 0;
     let hasMismatch = false;
 
     if (isPast) {
-      // 과거: pastTrips 만
+      // 과거: pastTrips + 외부 등록 오더
       dayTrips = pastTrips.filter((t) => t.dateISO === dateISO);
-      tripsCount = dayTrips.length;
+      tripsCount = dayTrips.length + dayExternal.length;
       hasMismatch = dayTrips.some((t) => t.conditionMismatch);
     } else {
-      // 오늘 및 미래: fixedSchedules 전개 (공휴일 제외)
+      // 오늘 및 미래: fixedSchedules 전개 (공휴일 제외) + 외부 등록 오더
       if (!HOLIDAYS.includes(dateISO)) {
         dayFixed = fixedSchedules.filter((fs) => fs.weekdays.includes(weekdayIndex));
-        tripsCount = dayFixed.length;
       }
+      tripsCount = dayFixed.length + dayExternal.length;
       hasMismatch = false;
     }
 
@@ -85,6 +92,7 @@ export default function MonthlyCalendar({ onOpenReport }: MonthlyCalendarProps) 
       hasMismatch,
       trips: dayTrips,
       fixedList: dayFixed,
+      externalList: dayExternal,
     });
   }
 
@@ -374,6 +382,45 @@ export default function MonthlyCalendar({ onOpenReport }: MonthlyCalendarProps) 
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* 외부 등록 오더 카드 (스케줄 추가로 등록된 건) */}
+        {selectedDay.externalList.length > 0 && (
+          <div className="space-y-2.5">
+            {selectedDay.externalList.map((item) => {
+              const o = item.order;
+              return (
+                <div
+                  key={o.id}
+                  className="bg-white border border-purple-200 rounded-xl p-3.5 shadow-2xs space-y-1.5"
+                >
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded">
+                          외부 오더
+                        </span>
+                        <span className="text-[11px] font-bold text-purple-700 font-mono">
+                          {o.pickup.time} - {o.dropoff.time}
+                        </span>
+                      </div>
+                      <div className="text-[13px] font-bold text-gray-900 mt-1">
+                        {o.pickup.sido} {o.pickup.sigungu} ➔ {o.dropoff.sido} {o.dropoff.sigungu}
+                      </div>
+                      <div className="text-[12px] text-gray-600 mt-0.5">
+                        {o.vehicle.ton}톤 {o.vehicle.body} · {o.loadOption} · {o.fare.total.toLocaleString()}원
+                      </div>
+                    </div>
+                  </div>
+                  {o.remarksRaw && (
+                    <div className="text-[11px] text-gray-500 pt-1 border-t border-gray-100">
+                      {o.remarksRaw}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 

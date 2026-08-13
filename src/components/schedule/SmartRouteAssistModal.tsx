@@ -122,14 +122,14 @@ export default function SmartRouteAssistModal({
 
         const mockOrder: SpotOrder = {
           id: `auto-${Date.now()}`,
-          source: "카카오T",
+          source: "kakao",
           shipper: "자동배차(AI)",
           pickup: {
             sido: condition.pickupSido && condition.pickupSido !== "전체" ? condition.pickupSido : "경기",
             sigungu: condition.pickupSigungu && condition.pickupSigungu !== "전체" ? condition.pickupSigungu : "용인시",
             dong: "",
             addressDetail: "AI 맞춤 생성",
-            dateExpr: "당일",
+            date: "D+0",
             dateISO: gap.dateISO,
             time: toHHMM(pickupMin),
             manual: false,
@@ -140,7 +140,7 @@ export default function SmartRouteAssistModal({
             sigungu: condition.dropoffSigungu && condition.dropoffSigungu !== "전체" ? condition.dropoffSigungu : "",
             dong: "",
             addressDetail: "",
-            dateExpr: "당일",
+            date: "D+0",
             dateISO: gap.dateISO,
             time: toHHMM(dropoffMin),
             manual: false,
@@ -148,16 +148,16 @@ export default function SmartRouteAssistModal({
           },
           vehicle: { 
             ton: resolvedTon, 
-            body: resolvedBody 
+            body: resolvedBody as any
           },
-          loadOption: condition.loadOption && condition.loadOption !== "전체" ? condition.loadOption : "독차",
+          loadOption: (condition.loadOption && condition.loadOption !== "전체" ? condition.loadOption : "독차") as any,
           distance: { toPickupKm: 15, haulKm: 250 },
           durationMin: dropoffMin - pickupMin,
           fare: {
             base: 300000,
             extraManual: 0,
             total: 300000,
-            settle: condition.fareType && condition.fareType !== "전체" ? condition.fareType : "선착불"
+            settle: (condition.fareType && condition.fareType !== "전체" ? condition.fareType : "선착불") as any
           },
           remarksRaw: "도착 30분 전 미리 연락 부탁드립니다. 안전 운행하세요!",
           conditions: [],
