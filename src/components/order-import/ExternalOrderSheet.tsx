@@ -153,11 +153,11 @@ export default function ExternalOrderSheet({
 
   return (
     <div
-      className="fixed inset-0 z-50 mx-auto flex max-w-[480px] flex-col justify-end bg-black/40"
+      className="fixed top-0 inset-x-0 bottom-[60px] z-40 mx-auto flex w-full max-w-[480px] flex-col justify-end bg-black/40"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[95vh] flex-col overflow-hidden rounded-t-2xl bg-white"
+        className="flex max-h-[90vh] flex-col overflow-hidden rounded-t-2xl bg-white pb-[20px]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -284,7 +284,7 @@ export default function ExternalOrderSheet({
                       type="time"
                       value={form.pickupTime}
                       onChange={(e) => patch({ pickupTime: e.target.value, pickupTimeGuessed: false })}
-                      className={FIELD + (form.pickupTimeGuessed ? " w-24 border-amber-400" : " w-24")}
+                      className={FIELD + (form.pickupTimeGuessed ? " w-[130px] border-amber-400" : " w-[130px]")}
                     />
                   </div>
                   {form.pickupTimeGuessed && (
@@ -317,7 +317,7 @@ export default function ExternalOrderSheet({
                       type="time"
                       value={form.dropoffTime}
                       onChange={(e) => patch({ dropoffTime: e.target.value, dropoffTimeGuessed: false })}
-                      className={FIELD + (form.dropoffTimeGuessed ? " w-24 border-amber-400" : " w-24")}
+                      className={FIELD + (form.dropoffTimeGuessed ? " w-[130px] border-amber-400" : " w-[130px]")}
                     />
                   </div>
                   {form.dropoffTimeGuessed && (
