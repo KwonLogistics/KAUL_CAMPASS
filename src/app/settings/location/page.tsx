@@ -4,8 +4,13 @@
  * ⚠️ 소유: 순범. 선호 지역 설정.
  *
  * 이 화면에는 축이 두 개다. 섞이면 기사가 무엇을 고르는지 모른다.
- *   ① 오더 축 — 선호 상차지 / 하차지 : 「어떤 오더를 목록에서 볼까」   (원래 앱, 여러 곳)
- *   ② 하루 축 — 선호 출발지 / 복귀점 : 「내 하루가 어디서 열리고 닫히나」 (우리가 더한 것, 한 곳씩)
+ *   ① 오더 축 — 선호 상차지 / 하차지 : 「어떤 오더를 목록에서 볼까」 (원래 앱, 여러 곳, 목록 필터)
+ *   ② 하루 축 — "나의 하루 동선"(선호 출발지 / 복귀점) : 「언제·어느 방향이 나에게 유리한가」
+ *      (우리가 더한 것, 한 곳씩, 목록은 안 줄이고 화물 정보 탭 「추천순」 정렬 순서만 바꾼다)
+ *
+ * ★ 이름을 "하루의 시작과 끝"에서 "나의 하루 동선"으로 바꿨다 — "시작과 끝"은 그 값이
+ *   어디에 쓰이는지 안 드러난다. "동선"은 방향·경로 개념이라 「추천순」 정렬(시간대별
+ *   방향 우대)과 나중에 나올 자동배차 추천의 기준이라는 게 이름에서부터 짐작이 간다.
  *
  * ★ ②의 두 값은 색과 아이콘으로 갈라 놓는다 — 초록 「출발」, 보라 「복귀」.
  *   위의 경로 띠가 둘의 관계를 한 눈에 보여주므로 설명 문장을 길게 쓰지 않는다.
@@ -36,14 +41,14 @@ const AXIS_META: Record<
     title: "선호 출발지",
     chip: "출발",
     icon: "▶",
-    hint: "하루의 첫 오더를 이 지점 주변에서 찾습니다.",
+    hint: "하루의 첫 오더를 이 지점 주변에서 찾습니다. 화물 정보 탭 「추천순」이 지금 시각·위치를 함께 봐서, 하루를 시작할 시간대엔 이 방향 오더를 위로 올립니다.",
     color: START,
   },
   end: {
     title: "선호 복귀점",
     chip: "복귀",
     icon: "⌂",
-    hint: "마지막 오더의 하차지를 이 지점 쪽으로 맞춥니다. 복귀 공차를 줄이려는 값입니다.",
+    hint: "마지막 오더의 하차지를 이 지점 쪽으로 맞춥니다. 복귀 공차를 줄이려는 값입니다. 화물 정보 탭 「추천순」이 지금 시각·위치를 함께 봐서, 하루를 마무리할 시간대엔 이 방향 오더를 위로 올립니다.",
     color: END,
   },
 };
@@ -180,8 +185,41 @@ export default function LocationSettings() {
             NEW
           </span>
           <h2 className="text-[15px] font-extrabold text-gray-900">
-            하루의 시작과 끝
+            나의 하루 동선
           </h2>
+        </div>
+
+        {/*
+          "선호 상하차지"와 이름이 비슷해 보여서 헷갈리기 쉽다 — 하나는 "무엇을 볼까"(목록 필터),
+          하나는 "언제·어느 방향이 나에게 유리한가"(시간·방향 기준)다. 문장으로 우기지 않고
+          두 축을 나란히 놓아 비교한다. 아래 두 줄은 실제로 이 값들이 무엇을 바꾸는지에 대한
+          정확한 설명이다 — "선호 상하차지"가 지금 정확히 무엇을 바꾸는지는 그 섹션에서 스스로
+          말하게 두고, 여기서는 이 값(하루 동선)이 하는 일만 과장 없이 적는다.
+        */}
+        <div className="mb-3 rounded-lg border border-[#d6e2ff] bg-[#f4f7ff] p-3">
+          <p className="mb-2 text-[12px] font-extrabold text-[#3b5bdb]">
+            아래 「선호 상하차지」와 다른 축입니다
+          </p>
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              <span className="mt-0.5 shrink-0 rounded bg-[#3b5bdb] px-1.5 py-0.5 text-[10px] font-extrabold text-white">
+                상하차지
+              </span>
+              <p className="text-[12px] leading-snug text-gray-600">
+                <strong className="text-gray-900">어떤 오더를 볼까</strong> — 화물 정보 탭 목록을 좁히는 지역 필터입니다.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <span className="mt-0.5 shrink-0 rounded bg-[#3b5bdb] px-1.5 py-0.5 text-[10px] font-extrabold text-white">
+                하루 동선
+              </span>
+              <p className="text-[12px] leading-snug text-gray-600">
+                <strong className="text-gray-900">언제·어느 방향이 유리할까</strong> — 오늘 어디서 시작해서 어디로 돌아갈지입니다.
+                목록을 좁히지 않고, 지금은 화물 정보 탭 <strong className="text-gray-900">「추천순」</strong> 정렬의 기준으로만 쓰입니다.
+                나중엔 자동배차 추천이 이 값을 봅니다.
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-white p-4">
@@ -283,9 +321,10 @@ export default function LocationSettings() {
       <div className="px-5 pt-2 pb-6 border-t border-gray-200 mt-5 bg-[#f4f4f6]">
         <h4 className="text-[15px] font-bold text-gray-900 mb-3 mt-4">이용 안내</h4>
         <ul className="text-[13.5px] text-gray-600 space-y-2 pl-4 list-disc marker:text-gray-400 leading-relaxed">
-          <li><span style={{ color: START.tone }} className="font-bold">출발지·복귀점</span>은 <strong>하루의 시작과 끝</strong>, <span className="text-[#3b5bdb] font-bold">상하차지</span>는 <strong>목록에 띄울 오더</strong>입니다.</li>
+          <li><span style={{ color: START.tone }} className="font-bold">출발지·복귀점</span>은 <strong>나의 하루 동선</strong>(시간·방향 기준), <span className="text-[#3b5bdb] font-bold">상하차지</span>는 <strong>목록에 띄울 오더</strong>(지역 필터)입니다.</li>
           <li>선호 상하차지를 설정하지 않을 경우, <strong>현위치 주변의 오더</strong>만 추천해 드립니다.</li>
           <li>선호 상하차지 주변에서 올라온 오더 추천은 주소를 <span className="text-[#3b5bdb] font-bold">♥파란색</span>으로 강조해 보여줍니다.</li>
+          <li>출발지·복귀점은 화물 정보 탭 <strong>「추천순」</strong> 정렬에서 지금 시각·위치를 함께 보는 데 쓰입니다 — 목록을 줄이지 않고 순서만 바꿉니다.</li>
         </ul>
       </div>
 

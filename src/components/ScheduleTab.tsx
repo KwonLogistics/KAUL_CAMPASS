@@ -1,9 +1,12 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import AiReportModal from "@/components/report/AiReportModal";
 import MonthlyCalendar from "@/components/MonthlyCalendar";
+import ExternalOrderSheet from "./order-import/ExternalOrderSheet";
+import { useAppState } from "@/lib/store/AppStateProvider";
 import { scheduleItems } from "./schedule/mock-schedule";
+import { convertSpotOrderToScheduleItem } from "./schedule/convert";
 import { buildDayTimeline } from "./schedule/timeline";
 import { getMetaBadges, getConditionBadges, getRouteLabel, getFareTotal } from "./schedule/badges";
 import ScheduleDetailModal from "./schedule/ScheduleDetailModal";
@@ -14,11 +17,22 @@ export default function ScheduleTab() {
   const [viewMode, setViewMode] = useState<"list" | "calendar">("calendar");
   const [calendarMode, setCalendarMode] = useState<"weekly" | "monthly">("weekly");
   const [showReportModal, setShowReportModal] = useState<boolean>(false);
+  const [showExternal, setShowExternal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
 
   const [selectedDate, setSelectedDate] = useState<number>(13);
   const weekDays = ["월", "화", "수", "목", "금", "토", "일"];
   const weekDates = [10, 11, 12, 13, 14, 15, 16];
+
+  // 순범: schedule-store.ts(실제 등록된 외부 오더)를 지수의 scheduleItems 파이프라인에 합류시킨다.
+  // mock-schedule.ts 주석이 이 자리를 비워뒀다 — "지금은 그 저장소가 비어 있어서 안 씀".
+  // convertSpotOrderToScheduleItem은 source로 카카오/외부를 안 가리므로 그대로 재사용한다.
+  const { scheduled, hydrated } = useAppState();
+  const externalItems = useMemo(
+    () => (hydrated ? scheduled.map((s) => convertSpotOrderToScheduleItem(s.order)) : []),
+    [scheduled, hydrated],
+  );
+  const allItems = useMemo(() => [...scheduleItems, ...externalItems], [externalItems]);
 
   const hours = Array.from({ length: 24 }, (_, i) => i);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -28,7 +42,7 @@ export default function ScheduleTab() {
   // selectedDate(일자 숫자) → "YYYY-MM-DD". 기존 요일 선택 UI는 8월 고정
   const selectedDateISO = `2026-08-${selectedDate.toString().padStart(2, "0")}`;
 
-  const currentDaySchedules = scheduleItems.filter((item) => item.date === selectedDateISO);
+  const currentDaySchedules = allItems.filter((item) => item.date === selectedDateISO);
 
   // 겹치는 후보 오더 중 겹치지 않는 하루 체인만 뽑고, 그 사이 공백에 휴식/공차 블록을 끼워 넣는다
   const dayBlocks = buildDayTimeline(currentDaySchedules);
@@ -77,7 +91,7 @@ export default function ScheduleTab() {
       </div>
 
       {viewMode === "list" ? (
-        /* List View Mode — 전체 scheduleItems를 시간순으로 표시 */
+        /* List View Mode — 전체 scheduleItems(+외부 등록)를 시간순으로 표시 */
         <div className="flex flex-col flex-1 min-h-[70vh]">
           <div className="flex justify-end items-center px-4 py-3 bg-white border-b border-gray-100">
             <div className="flex items-center cursor-pointer">
@@ -90,7 +104,7 @@ export default function ScheduleTab() {
             </div>
           </div>
 
-          {scheduleItems.length === 0 ? (
+          {allItems.length === 0 ? (
             <div className="flex-1 flex flex-col justify-center items-center">
               <div className="w-12 h-12 bg-gray-300 rounded-full flex items-center justify-center text-white text-2xl font-bold mb-4">
                 !
@@ -99,7 +113,7 @@ export default function ScheduleTab() {
             </div>
           ) : (
             <div className="flex-1 divide-y divide-gray-100 overflow-y-auto bg-white">
-              {scheduleItems.map((item) => {
+              {allItems.map((item) => {
                 const metaBadges = getMetaBadges(item);
                 return (
                   <div
@@ -376,7 +390,10 @@ export default function ScheduleTab() {
         </button>
 
         {/* 외부 스케줄 추가 버튼 (오른쪽 하단 고정) */}
-        <button className="pointer-events-auto bg-white text-gray-800 shadow-lg rounded-full py-3.5 px-5 font-bold text-[14px] flex items-center justify-center transition-transform hover:scale-105 border border-gray-200 cursor-pointer">
+        <button
+          onClick={() => setShowExternal(true)}
+          className="pointer-events-auto bg-white text-gray-800 shadow-lg rounded-full py-3.5 px-5 font-bold text-[14px] flex items-center justify-center transition-transform hover:scale-105 border border-gray-200 cursor-pointer"
+        >
           + 외부 스케줄 추가
         </button>
       </div>
@@ -387,6 +404,25 @@ export default function ScheduleTab() {
       {/* 스케줄 카드 상세 시트 */}
       {selectedItem && (
         <ScheduleDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} />
+      )}
+
+      {/* 외부 오더 등록 시트 */}
+      {showExternal && (
+        <ExternalOrderSheet
+          onClose={() => setShowExternal(false)}
+          onRegistered={(dateISO) => {
+            // 주간 보기는 아직 8월 10~16일 한 주만 보여준다(팀 스케줄 탭 자체의 현재 범위) —
+            // 그 범위 밖 날짜는 리스트 보기로 보내야 등록한 오더가 실제로 눈에 보인다.
+            const day = Number(dateISO.slice(8, 10));
+            if (dateISO.startsWith("2026-08") && day >= 10 && day <= 16) {
+              setViewMode("calendar");
+              setCalendarMode("weekly");
+              setSelectedDate(day);
+            } else {
+              setViewMode("list");
+            }
+          }}
+        />
       )}
     </div>
   );

@@ -16,6 +16,7 @@ import { notFound } from "next/navigation";
 import { spotOrders, dayTagOf, CALENDAR_2026_08 } from "@/data/mock-data";
 import type { SpotOrder, Waypoint } from "@/lib/types";
 import OrderAnalysis from "@/components/common/OrderAnalysis";
+import { useAppState } from "@/lib/store/AppStateProvider";
 
 /** 상하차 안내 문구 — 원문을 다시 파싱하지 않고 Waypoint의 불리언에서만 만든다. */
 function handlingNote(w: Waypoint, kind: "상차" | "하차"): string | null {
@@ -51,6 +52,9 @@ function Stop({
       <h2 className="text-[17px] font-extrabold leading-tight text-gray-900">
         {w.sido} {w.sigungu} {w.dong}
       </h2>
+      {w.addressDetail && (
+        <p className="mt-0.5 text-[13px] text-gray-500">{w.addressDetail}</p>
+      )}
 
       <div className="mt-1.5 flex flex-wrap items-center gap-1">
         {w.manual && (
@@ -113,8 +117,15 @@ export default function OrderDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const order = spotOrders.find((o) => o.id === id);
-  if (!order) notFound();
+  // 외부 등록 오더는 spotOrders(정적 목업)에 없다 — localStorage 저장소에서도 찾는다.
+  const { scheduled, hydrated } = useAppState();
+  const order =
+    spotOrders.find((o) => o.id === id) ?? scheduled.find((s) => s.order.id === id)?.order;
+  if (!order) {
+    // localStorage 복원 전(hydrated=false)에는 외부 오더가 아직 안 보일 뿐이다 — 진짜 404 로 단정하지 않는다.
+    if (!hydrated) return null;
+    notFound();
+  }
 
   const perKm =
     order.distance.haulKm > 0
