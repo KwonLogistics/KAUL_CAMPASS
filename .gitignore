@@ -43,3 +43,5 @@ next-env.d.ts
 # logs / docs
 kakao_log/
 ../kakao_log/
+# local dev log (팀원 각자 로컬에서만 관리)
+/dev-log
