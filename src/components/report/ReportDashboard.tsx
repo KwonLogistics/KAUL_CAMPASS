@@ -18,7 +18,6 @@ export default function ReportDashboard({
 
   const [activeTab, setActiveTab] = useState<"sectionA" | "sectionB">("sectionA");
   const [isGuideOpen, setIsGuideOpen] = useState(false);
-  const [isTomorrowOpen, setIsTomorrowOpen] = useState(false);
   const [isWaitDetailOpen, setIsWaitDetailOpen] = useState(false);
   const [isOrderRawDetailsOpen, setIsOrderRawDetailsOpen] = useState(false);
 
@@ -91,7 +90,32 @@ export default function ReportDashboard({
         </button>
       </div>
 
-      <div className="p-4 space-y-8 max-w-[480px] mx-auto w-full">
+      <div className="p-4 space-y-6 max-w-[480px] mx-auto w-full">
+        {/* ========================================================= */}
+        {/* 상단: 일일 변동 운행 참고 사항 (토글 없이 그대로 노출) */}
+        {/* ========================================================= */}
+        <div className="bg-[#eff6ff] border border-[#dbeafe] rounded-xl p-4 space-y-2.5 shadow-2xs">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-bold text-[#1e40af] bg-white px-2 py-0.5 rounded border border-[#bfdbfe]">
+              운행 참고
+            </span>
+            <span className="text-[13px] font-bold text-gray-900">
+              내일 8/14(금)
+            </span>
+          </div>
+
+          <div className="text-[12px] text-gray-700 space-y-1.5 leading-relaxed bg-white/70 p-3 rounded-lg border border-blue-100/60">
+            <div className="flex items-start gap-2">
+              <span className="text-[#3b5bdb] font-bold mt-0.5">·</span>
+              <p>내일 8/14(금)은 &apos;택배 없는 날&apos;입니다. 주요 택배사의 집화·배송이 중단됩니다.</p>
+            </div>
+            <div className="flex items-start gap-2">
+              <span className="text-[#3b5bdb] font-bold mt-0.5">·</span>
+              <p>쿠팡 로켓배송, SSG 쓱배송, 컬리 샛별배송 등 자체 물류망은 정상 운영됩니다.</p>
+            </div>
+          </div>
+        </div>
+
         {/* ========================================================= */}
         {/* [섹션 A] 지난 30일 */}
         {/* ========================================================= */}
@@ -536,32 +560,6 @@ export default function ReportDashboard({
               <div className="flex items-start gap-2">
                 <span className="text-gray-400 mt-0.5">·</span>
                 <p>차량 요건이 맞지 않는 오더도 목록에 그대로 남습니다. 회색으로 표시되고 사유가 붙습니다.</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ========================================================= */}
-        {/* 접힘 블록: 참고 — 내일 8/14(금) */}
-        {/* ========================================================= */}
-        <div className="bg-white rounded-xl border border-gray-200/80 overflow-hidden">
-          <button
-            onClick={() => setIsTomorrowOpen(!isTomorrowOpen)}
-            className="w-full px-5 py-3.5 text-left text-[13px] font-bold text-gray-700 hover:bg-gray-50 flex justify-between items-center transition-colors cursor-pointer"
-          >
-            <span>참고 — 내일 8/14(금)</span>
-            <span className="text-gray-400 text-[12px]">{isTomorrowOpen ? "▴" : "▾"}</span>
-          </button>
-
-          {isTomorrowOpen && (
-            <div className="px-5 pb-4 pt-1 border-t border-gray-100 text-[12px] text-gray-700 space-y-2 leading-relaxed bg-gray-50/50">
-              <div className="flex items-start gap-2">
-                <span className="text-gray-400 mt-0.5">·</span>
-                <p>내일 8/14(금)은 &apos;택배 없는 날&apos;입니다. 주요 택배사의 집화·배송이 중단됩니다.</p>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-gray-400 mt-0.5">·</span>
-                <p>쿠팡 로켓배송, SSG 쓱배송, 컬리 샛별배송 등 자체 물류망은 정상 운영됩니다.</p>
               </div>
             </div>
           )}
