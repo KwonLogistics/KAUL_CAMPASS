@@ -201,13 +201,22 @@ export default function ExternalOrderSheet({
                 밴드·카톡·문자에서 받은 오더를 그대로 붙여넣으세요.
               </p>
 
-              <textarea
-                value={raw}
-                onChange={(e) => setRaw(e.target.value)}
-                rows={5}
-                placeholder="8/18 화성 향남 08시 상차, 원주 문막 당착. 5톤 윙바디 독차. 34만. 지게차 상하차, 파렛트 10개."
-                className="w-full resize-none rounded-lg border border-gray-200 p-3 text-[14px] leading-relaxed outline-none focus:border-[#3b5bdb]"
-              />
+              <div className="relative">
+                <textarea
+                  value={raw}
+                  onChange={(e) => setRaw(e.target.value)}
+                  rows={5}
+                  placeholder="8/18 화성 향남 08시 상차, 원주 문막 당착. 5톤 윙바디 독차. 34만. 지게차 상하차, 파렛트 10개."
+                  className="w-full resize-none rounded-lg border border-gray-200 p-3 pb-10 text-[14px] leading-relaxed outline-none focus:border-[#3b5bdb]"
+                />
+                <button 
+                  onClick={() => alert("음성 인식 기능은 준비 중입니다.")}
+                  className="absolute bottom-3 right-3 rounded-full bg-gray-100 p-2 text-gray-500 hover:bg-gray-200 transition-colors"
+                  title="음성으로 오더 입력하기"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                </button>
+              </div>
 
               <input
                 type="file"

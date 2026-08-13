@@ -12,8 +12,8 @@ import type { ScheduleItem, ScheduleItemStatus } from "./types";
  * 데모 기준 시점 — 고정값. 실제 시계를 읽지 않는다.
  * 이 값을 기준으로 오늘(D+0) 스케줄만 상차/하차 시각과 비교해 completed/in_progress를 가른다.
  */
-const DEMO_NOW_DATE_ISO = "2026-08-13";
-const DEMO_NOW_TIME = "10:00";
+export const DEMO_NOW_DATE_ISO = "2026-08-13";
+export const DEMO_NOW_TIME = "10:00";
 
 /**
  * 상차/하차 날짜·시간만으로 상태를 파생한다 — 임의 판단 없음. 세 컨버터가 전부 이걸 쓴다.
