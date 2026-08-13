@@ -11,7 +11,9 @@ import { buildDayTimeline, isRecommendationEligible, getEdgeRestBlocks } from ".
 import { getMetaBadges, getConditionBadges, getRouteLabel, getFareTotal } from "./schedule/badges";
 import ScheduleDetailModal from "./schedule/ScheduleDetailModal";
 import SmartRouteAssistModal, { type GapWindow } from "./schedule/SmartRouteAssistModal";
+import AutoDispatchSuccessModal from "@/components/cargo/AutoDispatchSuccessModal";
 import type { ScheduleItem } from "./schedule/types";
+import type { SpotOrder } from "@/lib/types";
 import { STATUS_LABEL, STATUS_STYLE } from "./schedule/status-style";
 
 export default function ScheduleTab() {
@@ -21,9 +23,25 @@ export default function ScheduleTab() {
   const [showExternal, setShowExternal] = useState(false);
   const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
   const [assistGap, setAssistGap] = useState<GapWindow | null>(null);
+  const [matchedOrder, setMatchedOrder] = useState<SpotOrder | null>(null);
 
   const [selectedDateISO, setSelectedDateISO] = useState<string>("2026-08-13");
   const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
+
+  const { scheduled, hydrated, addScheduled } = useAppState();
+
+  const handleRegisterMock = (order: SpotOrder) => {
+    setAssistGap(null);
+    setTimeout(() => {
+      addScheduled({
+        order,
+        dateISO: order.pickup.dateISO,
+        via: "auto",
+        addedAt: new Date().toISOString(),
+      });
+      setMatchedOrder(order);
+    }, 1500);
+  };
 
   // selectedDateISO를 중앙(index 3)으로 두고 앞뒤 3일씩 총 7일을 동적으로 롤링 생성
   const rollingDays = useMemo(() => {
@@ -67,7 +85,6 @@ export default function ScheduleTab() {
   // 순범: schedule-store.ts(실제 등록된 외부 오더)를 지수의 scheduleItems 파이프라인에 합류시킨다.
   // mock-schedule.ts 주석이 이 자리를 비워뒀다 — "지금은 그 저장소가 비어 있어서 안 씀".
   // convertSpotOrderToScheduleItem은 source로 카카오/외부를 안 가리므로 그대로 재사용한다.
-  const { scheduled, hydrated } = useAppState();
   const externalItems = useMemo(
     () => (hydrated ? scheduled.map((s) => convertSpotOrderToScheduleItem(s.order)) : []),
     [scheduled, hydrated],
@@ -512,9 +529,21 @@ export default function ScheduleTab() {
         <ScheduleDetailModal item={selectedItem} onClose={() => setSelectedItem(null)} />
       )}
 
-      {/* 스마트 경로 어시스트 — 90분 이상 공백에서 "AI 스마트 경로 추천 받기" 클릭 시 */}
+      {/* 스마트 경로 어시스트 (90분 이상 공백에서 "AI 스마트 경로 추천 받기" 클릭 시) */}
       {assistGap && (
-        <SmartRouteAssistModal gap={assistGap} onClose={() => setAssistGap(null)} />
+        <SmartRouteAssistModal 
+          gap={assistGap} 
+          onClose={() => setAssistGap(null)} 
+          onRegisterMock={handleRegisterMock}
+        />
+      )}
+
+      {/* 매칭 성공 모달 */}
+      {matchedOrder && (
+        <AutoDispatchSuccessModal 
+          order={matchedOrder} 
+          onClose={() => setMatchedOrder(null)} 
+        />
       )}
 
       {/* 외부 오더 등록 시트 */}
