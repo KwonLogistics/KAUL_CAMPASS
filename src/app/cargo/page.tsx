@@ -12,7 +12,12 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { spotOrders, isOvernightLoad, CALENDAR_2026_08 } from "@/data/mock-data";
+import {
+  spotOrders,
+  isOvernightLoad,
+  dayTagOf,
+  CALENDAR_2026_08,
+} from "@/data/mock-data";
 import type { SpotOrder } from "@/lib/types";
 import { computeEconomics } from "@/lib/engine/economics";
 import { estimateWait } from "@/lib/engine/wait-time";
@@ -74,16 +79,6 @@ function sortOrders(list: SpotOrder[], key: SortKey): SpotOrder[] {
         return wa.minutes - wb.minutes;
       });
   }
-}
-
-function getDayTag(dateBucket: "D+0" | "D+1" | "D+2+", dateISO: string, isPickup: boolean) {
-  if (dateBucket === "D+0") return isPickup ? "당상" : "당착";
-  if (dateBucket === "D+1") return isPickup ? "내상" : "내착";
-  
-  const day = CALENDAR_2026_08[dateISO] || "";
-  if (day === "월") return isPickup ? "월상" : "월착";
-  
-  return isPickup ? "상차" : "하차";
 }
 
 /** 배지는 저장하지 않고 날짜·조건에서 파생한다. */
@@ -178,16 +173,8 @@ export default function CargoInfo() {
         </div>
       )}
 
-      {/* Banner */}
-      <div className="shrink-0 bg-[#eef2ff] px-5 py-5 flex justify-between items-center relative overflow-hidden">
-        <div className="z-10">
-          <p className="text-gray-800 font-bold text-base leading-snug">화물기사 자격을 등록하면<br/>오더를 수행할 수 있어요</p>
-          <p className="text-[#3b5bdb] font-semibold text-sm mt-2 flex items-center cursor-pointer">
-            서류 제출하러 가기 <svg className="w-3 h-3 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path></svg>
-          </p>
-        </div>
-        <div className="absolute right-[-5px] bottom-[-5px] text-7xl opacity-90 drop-shadow-sm">🗂️</div>
-      </div>
+      {/* 자격 등록 배너는 두지 않는다 — 서류를 이미 낸 기사에게는 뜨지 않는 화면이다.
+          우리 데모의 기사는 7개월째 운행 중이므로 이 배너가 뜰 상태가 아니다. */}
 
       {/* Order List */}
       <div className="flex-1 overflow-y-auto bg-white pb-[60px]">
@@ -211,7 +198,7 @@ export default function CargoInfo() {
                   </span>
                 )}
                 <span className="ml-1 bg-[#e03131] text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
-                  {getDayTag(order.pickup.date, order.pickup.dateISO, true)}
+                  {dayTagOf(order.pickup, true)}
                 </span>
                 <span className="ml-1 text-[13px] text-gray-500 font-medium">{order.pickup.time}</span>
               </div>
@@ -225,7 +212,7 @@ export default function CargoInfo() {
                 <div className="w-2 h-2 rounded-full bg-[#3b5bdb] mr-2"></div>
                 <span className="font-bold text-gray-900 text-base">{order.dropoff.sido} {order.dropoff.sigungu} {order.dropoff.dong}</span>
                 <span className="ml-1 bg-[#3b5bdb] text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
-                  {getDayTag(order.dropoff.date, order.dropoff.dateISO, false)}
+                  {dayTagOf(order.dropoff, false)}
                 </span>
                 <span className="ml-1 text-[13px] text-gray-500 font-medium">{order.dropoff.time}</span>
               </div>

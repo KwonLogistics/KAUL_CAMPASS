@@ -3,28 +3,109 @@
 /**
  * ⚠️ 소유: 순범. 오더 전체 정보창.
  *
- * 카드가 보여준 두 숫자(실질 시급 · 업무 외 대기시간)의 근거를 여기서 전부 편다.
- * ★ 조건마다 원문 구절을 같이 보여준다 — 근거 구절이 있어야 기사가 우리 추정을 믿는다.
- *   해석 못 한 건 빈칸으로 두지 않고 "해석 불가 — 원문 그대로"라고 쓴다.
+ * ★ 원래 앱의 상세 화면을 그대로 둔다 — 경로 / 물품정보 / 운임 / 업체정보 순서,
+ *   표 모양, 하단 「닫기 · 수락」까지. 기사가 이미 외운 화면을 우리가 바꾸지 않는다.
+ * ★ 화주 요구사항(remarksRaw)은 파싱하지 않고 원문 그대로 물품정보 칸에 넣는다.
+ *   조건 태그는 여기서 쓰지 않는다.
+ * ★ 우리가 더한 것은 「실대기 시간 · 실질임금」 하나뿐이고, 그건 더보기 안에 있다.
  */
 
 import { use } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  spotOrders,
-  conditionStatusLabels,
-  conditionTypeLabels,
-  renderDateBadge,
-} from "@/data/mock-data";
-import type { ConditionStatus } from "@/lib/types";
-import TimeBreakdown from "@/components/common/TimeBreakdown";
+import { spotOrders, dayTagOf, CALENDAR_2026_08 } from "@/data/mock-data";
+import type { SpotOrder, Waypoint } from "@/lib/types";
+import OrderAnalysis from "@/components/common/OrderAnalysis";
 
-const STATUS_STYLE: Record<ConditionStatus, string> = {
-  명시: "bg-[#f4f7ff] text-[#3b5bdb] border-[#d6e2ff]",
-  추정: "bg-[#fff7ed] text-[#c2620a] border-[#fed7aa]",
-  미상: "bg-gray-100 text-gray-500 border-gray-200",
-};
+/** 상하차 안내 문구 — 원문을 다시 파싱하지 않고 Waypoint의 불리언에서만 만든다. */
+function handlingNote(w: Waypoint, kind: "상차" | "하차"): string | null {
+  if (w.manual) return `함께 ${kind}+운반해 주셔야 합니다.`;
+  if (w.forklift) return `지게차 ${kind}입니다.`;
+  return null;
+}
+
+function Stop({
+  w,
+  order,
+  isPickup,
+}: {
+  w: Waypoint;
+  order: SpotOrder;
+  isPickup: boolean;
+}) {
+  const note = handlingNote(w, isPickup ? "상차" : "하차");
+  const weekday = CALENDAR_2026_08[w.dateISO];
+
+  return (
+    <div className="relative pl-6 pb-5 last:pb-0">
+      {/* 점 + 점선 연결 */}
+      <span
+        className={`absolute left-0 top-[5px] h-3.5 w-3.5 rounded-full ${
+          isPickup ? "border-2 border-gray-400 bg-white" : "bg-[#7048e8]"
+        }`}
+      />
+      {isPickup && (
+        <span className="absolute bottom-0 left-[6px] top-[22px] w-px border-l border-dashed border-gray-300" />
+      )}
+
+      <h2 className="text-[17px] font-extrabold leading-tight text-gray-900">
+        {w.sido} {w.sigungu} {w.dong}
+      </h2>
+
+      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+        {w.manual && (
+          <span className="rounded bg-gray-400 px-1.5 py-0.5 text-[11px] font-bold text-white">
+            수
+          </span>
+        )}
+        {w.date !== "D+0" && weekday && (
+          <span className="rounded bg-gray-400 px-1.5 py-0.5 text-[11px] font-bold text-white">
+            {weekday}
+          </span>
+        )}
+        <span
+          className={`rounded px-1.5 py-0.5 text-[11px] font-bold text-white ${
+            isPickup ? "bg-[#e03131]" : "bg-[#3b5bdb]"
+          }`}
+        >
+          {dayTagOf(w, isPickup)}
+        </span>
+        <span className="ml-0.5 text-[13px] font-medium text-gray-600">
+          {w.time}
+        </span>
+      </div>
+
+      {(note || isPickup) && (
+        <div className="mt-2 rounded bg-[#f4f4f6] px-3 py-2.5 text-[13px] leading-relaxed text-gray-700">
+          {note && <p>{note}</p>}
+          {isPickup && <p className="text-gray-500">{order.shipper}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 표 한 줄 — 라벨 칸(연파랑) + 값 칸 */
+function TableRow({
+  label,
+  children,
+  last = false,
+}: {
+  label: string;
+  children: React.ReactNode;
+  last?: boolean;
+}) {
+  return (
+    <div className={`flex ${last ? "" : "border-b border-gray-200"}`}>
+      <div className="w-[84px] shrink-0 border-r border-gray-200 bg-[#f4f7ff] px-3 py-3 text-[13px] font-bold text-gray-700">
+        {label}
+      </div>
+      <div className="min-w-0 flex-1 px-3 py-3 text-[13px] leading-relaxed text-gray-800">
+        {children}
+      </div>
+    </div>
+  );
+}
 
 export default function OrderDetail({
   params,
@@ -35,62 +116,60 @@ export default function OrderDetail({
   const order = spotOrders.find((o) => o.id === id);
   if (!order) notFound();
 
+  const perKm =
+    order.distance.haulKm > 0
+      ? Math.round(order.fare.total / order.distance.haulKm)
+      : 0;
+
   return (
     <div className="flex min-h-screen flex-col bg-[#f4f4f6] pb-[80px]">
-      <div className="sticky top-0 z-20 flex items-center gap-3 bg-white px-4 py-3.5">
+      <div className="sticky top-0 z-20 flex items-center justify-between bg-white px-4 py-3.5">
         <Link href="/cargo" className="text-gray-800">
-          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          <svg
+            className="h-6 w-6"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M10 19l-7-7m0 0l7-7m-7 7h18"
+            />
           </svg>
         </Link>
-        <span className="text-[15px] font-bold text-gray-900">
-          {renderDateBadge(order)}
-        </span>
+        <span className="text-[15px] font-bold text-gray-800">지도 보기</span>
       </div>
 
       {/* 경로 */}
-      <div className="bg-white px-5 py-5">
-        <div className="mb-4 flex items-center gap-2 text-[13px] text-gray-600">
-          <span className="rounded bg-gray-100 px-2 py-0.5 font-medium">
-            {order.loadOption}
+      <div className="bg-white px-5 pb-5">
+        <div className="flex items-center gap-2 py-3 text-[13px] text-gray-600">
+          <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[12px] font-bold text-gray-700">
+            편도
           </span>
-          <span>
-            {order.vehicle.ton}톤 {order.vehicle.body}
-          </span>
-          <span className="text-gray-300">|</span>
-          <span>운송 {order.distance.haulKm}km</span>
-          <span className="text-gray-300">|</span>
           <span>상차지까지 {order.distance.toPickupKm}km</span>
+          <span className="text-gray-300">|</span>
+          <span>운송거리 {order.distance.haulKm}km</span>
         </div>
 
-        {[
-          { w: order.pickup, kind: "상차", dot: "border-2 border-gray-400 bg-white" },
-          { w: order.dropoff, kind: "하차", dot: "bg-[#3b5bdb]" },
-        ].map(({ w, kind, dot }) => (
-          <div key={kind} className="mb-5 flex last:mb-0">
-            <div className={`mr-3 mt-1.5 h-3.5 w-3.5 shrink-0 rounded-full ${dot}`} />
-            <div className="flex-1">
-              <h2 className="text-[17px] font-extrabold leading-tight text-gray-900">
-                {w.sido} {w.sigungu} {w.dong}
-              </h2>
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                <span className="rounded bg-[#3b5bdb] px-1.5 py-0.5 text-[11px] font-bold text-white">
-                  {kind} {w.time}
-                </span>
-                {w.forklift && (
-                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-bold text-gray-600">
-                    지게차
-                  </span>
-                )}
-                {w.manual && (
-                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-bold text-gray-600">
-                    수작업
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        ))}
+        <div className="mt-1">
+          <Stop w={order.pickup} order={order} isPickup />
+          <Stop w={order.dropoff} order={order} isPickup={false} />
+        </div>
+      </div>
+
+      {/* 물품정보 — 화주 요구사항은 원문 그대로 */}
+      <div className="mt-3 px-4">
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+          <TableRow label="물품정보">
+            {order.remarksRaw || <span className="text-gray-400">-</span>}
+          </TableRow>
+          <TableRow label="혼적여부">{order.loadOption}</TableRow>
+          <TableRow label="요구차종" last>
+            {order.vehicle.ton}톤 {order.vehicle.body}
+          </TableRow>
+        </div>
 
         {!order.vehicleFit.ok && (
           <p className="mt-2 rounded bg-gray-100 px-3 py-2 text-[12px] leading-snug text-gray-600">
@@ -99,65 +178,24 @@ export default function OrderDetail({
         )}
       </div>
 
-      {/* ★ 시간 분해 — 카드의 두 숫자가 어디서 나왔나 */}
-      <div className="mt-3 px-4">
-        <TimeBreakdown order={order} />
-      </div>
-
-      {/* 화주 요구사항 — 원문과 파싱 결과를 같이 */}
-      <div className="mt-3 px-4">
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <h3 className="mb-2 text-[15px] font-extrabold text-gray-900">
-            화주 요구사항
-          </h3>
-
-          {order.remarksRaw ? (
-            <p className="rounded bg-[#f8f9fa] px-3 py-2.5 text-[13px] leading-relaxed text-gray-700">
-              {order.remarksRaw}
-            </p>
-          ) : (
-            <p className="rounded bg-[#f8f9fa] px-3 py-2.5 text-[13px] text-gray-400">
-              원문 비고 없음
-            </p>
-          )}
-
-          <div className="mt-3 flex flex-col gap-2.5">
-            {order.conditions.map((c, i) => (
-              <div key={i} className="flex gap-2">
-                <span
-                  className={`h-fit shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-bold ${STATUS_STYLE[c.status]}`}
-                >
-                  {conditionTypeLabels[c.type]}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-medium text-gray-900">{c.value}</p>
-                  {/* ★ 근거 구절. 이 한 줄이 있어야 우리 추정을 믿는다 */}
-                  <p className="mt-0.5 text-[11px] leading-snug text-gray-500">
-                    ← 원문 &ldquo;{c.evidence}&rdquo; · {conditionStatusLabels[c.status]}
-                  </p>
-                </div>
-              </div>
-            ))}
-            {order.conditions.length === 0 && (
-              <p className="text-[12px] text-gray-400">
-                원문에서 뽑아낸 조건이 없습니다
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* 운임 */}
-      <div className="mt-3 mb-6 px-4">
+      <div className="mt-3 px-4">
         <div className="rounded-lg border border-gray-200 bg-white p-4">
+          <div className="mb-3 flex items-center gap-1.5">
+            <span className="rounded bg-[#f4f7ff] px-1.5 py-0.5 text-[12px] font-bold text-[#3b5bdb]">
+              {order.fare.settle}
+            </span>
+          </div>
+
           <div className="flex items-baseline justify-between">
             <span className="text-[15px] font-extrabold text-gray-900">
-              등록 운임
+              업체와 정산할 금액
             </span>
             <span className="text-[20px] font-extrabold text-gray-900">
               {order.fare.total.toLocaleString()}원
             </span>
           </div>
+
           <div className="mt-2 flex justify-between text-[13px] text-gray-500">
             <span>기본운임</span>
             <span>{order.fare.base.toLocaleString()}원</span>
@@ -168,10 +206,50 @@ export default function OrderDetail({
               <span>{order.fare.extraManual.toLocaleString()}원</span>
             </div>
           )}
+
+          <div className="mt-3 flex items-baseline justify-between border-t border-gray-200 pt-3">
+            <span className="text-[15px] font-extrabold text-gray-900">
+              총 수입
+            </span>
+            <div className="text-right">
+              <span className="text-[20px] font-extrabold text-gray-900">
+                {order.fare.total.toLocaleString()}원
+              </span>
+              <p className="text-[13px] text-gray-500">
+                1km당 <span className="font-bold">{perKm.toLocaleString()}원</span>
+              </p>
+            </div>
+          </div>
+
           <p className="mt-2.5 text-[10px] leading-snug text-gray-400">
             앱에 등록된 운임입니다. 현장에서 협의로 달라질 수 있어 실제 지급액과
             다를 수 있습니다.
           </p>
+        </div>
+      </div>
+
+      {/* ★ 우리가 더한 것 — 접혀 있다가 더보기로 열린다 */}
+      <div className="mt-3 px-4">
+        <OrderAnalysis order={order} />
+      </div>
+
+      {/* 업체정보 */}
+      <div className="mt-3 mb-6 px-4">
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+          <TableRow label="업체정보">
+            <div className="flex items-center justify-between gap-2">
+              <span>{order.shipper}</span>
+              <button
+                type="button"
+                className="shrink-0 rounded border border-gray-300 px-2 py-1 text-[12px] font-medium text-gray-600"
+              >
+                신고하기
+              </button>
+            </div>
+          </TableRow>
+          <TableRow label="정산방식" last>
+            {order.fare.settle}
+          </TableRow>
         </div>
       </div>
 
